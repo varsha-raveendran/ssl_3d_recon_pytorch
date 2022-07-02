@@ -127,3 +127,6 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+*src/data/ShapeNet_rendered*
+*src/data/ShapeNet_v1*
