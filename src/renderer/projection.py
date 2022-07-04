@@ -12,29 +12,51 @@ class World2Cam(nn.Module):
     def forward(self, xyz, az, el, d_min, d_max, batch_size, n_pts=1024):
         d = d_min
         # Calculate translation params
-        tx, ty, tz = [0, 0, d]
+        #tx, ty, tz = [0, 0, d]
+        tx = torch.tensor(0)
+        ty = torch.tensor(0)
+        tz = torch.tensor(d)
+        # rotmat_az=[
+		#     [torch.ones_like(az),torch.zeros_like(az),torch.zeros_like(az)],
+		#     [torch.zeros_like(az),torch.cos(az),-torch.sin(az)],
+		#     [torch.zeros_like(az),torch.sin(az),torch.cos(az)]
+		#     ]
+        # rotmat_el=[
+		#     [torch.cos(el),torch.zeros_like(az), torch.sin(el)],
+		#     [torch.zeros_like(az),torch.ones_like(az),torch.zeros_like(az)],
+		#     [-torch.sin(el),torch.zeros_like(az), torch.cos(el)]
+		#     ]
+        # rotmat_az = torch.stack(rotmat_az)
+        # rotmat_el = torch.stack(rotmat_el)    
+
         rotmat_az=[
-		    [torch.ones_like(az),torch.zeros_like(az),torch.zeros_like(az)],
-		    [torch.zeros_like(az),torch.cos(az),-torch.sin(az)],
-		    [torch.zeros_like(az),torch.sin(az),torch.cos(az)]
+		    torch.stack([torch.ones_like(az),torch.zeros_like(az),torch.zeros_like(az)]),
+		    torch.stack([torch.zeros_like(az),torch.cos(az),-torch.sin(az)]),
+		    torch.stack([torch.zeros_like(az),torch.sin(az),torch.cos(az)])
 		    ]
         rotmat_el=[
-		    [torch.cos(el),torch.zeros_like(az), torch.sin(el)],
-		    [torch.zeros_like(az),torch.ones_like(az),torch.zeros_like(az)],
-		    [-torch.sin(el),torch.zeros_like(az), torch.cos(el)]
+		    torch.stack([torch.cos(el),torch.zeros_like(az), torch.sin(el)]),
+		    torch.stack([torch.zeros_like(az),torch.ones_like(az),torch.zeros_like(az)]),
+		    torch.stack([-torch.sin(el),torch.zeros_like(az), torch.cos(el)])
 		    ]
-        rotmat_az = torch.transpose(torch.stack(rotmat_az, 0), [2,0,1])  
-        rotmat_el = torch.transpose(torch.stack(rotmat_el, 0), [2,0,1])
+        
+        # For batch - uncomment once debugging done
+        #rotmat_az = torch.permute(torch.stack(rotmat_az, 0), (2,0,1))  
+        #rotmat_el = torch.permute(torch.stack(rotmat_el, 0), [2,0,1])
+        # For debugging - comment once debugging done
+        rotmat_az = torch.stack(rotmat_az, 0)
+        rotmat_el = torch.stack(rotmat_el, 0)
 
         rotmat = torch.matmul(rotmat_el, rotmat_az)
 
-        tr_mat = torch.tile(torch.unsqueeze([tx, ty, tz],0), [batch_size,1]) # [B,3]
+        tr_mat = torch.tile(torch.unsqueeze(torch.stack([tx, ty, tz]),0), [batch_size,1]) # [B,3]
         tr_mat = torch.unsqueeze(tr_mat,2) # [B,3,1]
-        tr_mat = torch.transpose(tr_mat, [0,2,1]) # [B,1,3]
+        tr_mat = torch.permute(tr_mat, [0,2,1]) # [B,1,3]
         tr_mat = torch.tile(tr_mat,[1,n_pts,1]) # [B,2048,3]
-
-        xyz_out = torch.matmul(rotmat,torch.transpose((xyz),[0,2,1])) - torch.transpose(tr_mat,[0,2,1])
-        return torch.transpose(xyz_out,[0,2,1])
+        print(rotmat.shape)
+        print(torch.permute(tr_mat,[0,2,1]).shape)
+        xyz_out = torch.matmul(rotmat,torch.permute((xyz),[0,2,1])) - torch.permute(tr_mat,[0,2,1])
+        return torch.permute(xyz_out,[0,2,1])
 
 class PerspectiveTransform(nn.Module):
     def __init__(self, ) -> None:
@@ -44,18 +66,19 @@ class PerspectiveTransform(nn.Module):
         K = np.array([
 	    [120., 0., -32.],
 	    [0., 120., -32.],
-	    [0., 0., 1.]]).astype(np.float32)
+	    [0., 0., 1.]]).astype(np.float64)
         K = np.expand_dims(K, 0)
         K = np.tile(K, [batch_size,1,1])
         
         #Convert np matrix to tensor
         K = torch.from_numpy(K)
         
-        xyz_out = torch.matmul(K, torch.transpose(input, [0,2,1]))
+        
+        xyz_out = torch.matmul(K, torch.permute(input, [0,2,1]))
         xy_out = xyz_out[:,:2]/abs(torch.unsqueeze(input[:,:,2],1))
         xyz_out = torch.concat([xy_out, abs(xyz_out[:,2:])],dim=1)
 
-        return torch.transpose(xyz_out, [0,2,1])
+        return torch.permute(xyz_out, [0,2,1])
 
 class RgbContProj(nn.Module):
     def __init__(self, ) -> None:
@@ -86,14 +109,17 @@ class RgbContProj(nn.Module):
         depth_val = self.get_depth(pcl+add_depth_range, grid_h, grid_w, N_pts, well_radius) # (BS,N_PTS,H,W)
         prob = self.get_proj_prob_exp(depth_val, beta) # (BS,N_PTS,H,W)
         # Mask out the regions where no point is projected
-        mask = torch.logical_not(torch.eq(10.*torch.ones_like(depth_val, torch.float32), depth_val)) # (BS,N_Pts,H,W)
+        mask = torch.logical_not(torch.eq(10.*torch.ones_like(depth_val).type(torch.float32), depth_val)) # (BS,N_Pts,H,W)
         #mask = torch.cast(mask, torch.float32)
         mask = mask.type(torch.FloatTensor)
         prob = prob*mask
         # Normalize probabilities
-        prob = prob/(torch.sum(prob, dim=1, keep_dims=True) + 1e-8)
+        prob = prob/(torch.sum(prob, dim=1, keepdim=True) + 1e-8)
         # Expectation of feature values
-        proj_feat = torch.unsqueeze(prob, dim=-1) * (torch.unsqueeze(torch.unsqueeze(torch.to_float(feat),
+        print(torch.unsqueeze(prob, dim=-1).shape)
+        print((torch.unsqueeze(torch.unsqueeze(feat.type(torch.float32),
+        dim=2), dim=2)).shape)
+        proj_feat = torch.unsqueeze(prob, dim=-1) * (torch.unsqueeze(torch.unsqueeze(feat.type(torch.float32),
         dim=2), dim=2)) # (BS,N_pts,H,W,N_cls)
         proj_feat = torch.sum(proj_feat, dim=1) # (BS,H,W,N_cls) --> one-hot
         # mask out background i.e. regions where all point contributions sum to 0
@@ -123,10 +149,12 @@ class RgbContProj(nn.Module):
         Returns:
         depth: float, (N_batch,N_Pts,H,W); output depth
         '''
-        x, y, z = torch.split(pcl, 3, dim=2)
-        pcl_norm = torch.concat([x, y, z], 2)
-        pcl_xy = torch.concat([x,y], 2)
-        out_grid = torch.meshgrid(torch.range(grid_h), torch.range(grid_w), indexing='ij')
+        x, y, z = torch.chunk(pcl, 3, dim=2)
+        # x,y,z = pcl[:, :, 0], pcl[:, :, 1], pcl[:, :, 2]
+        #pcl_norm = torch.concat([x, y, z], 2)
+        #pcl_xy = torch.concat([x,y], 2)
+        pcl_xy = pcl[:,:,0:2]
+        out_grid = torch.meshgrid(torch.arange(grid_h), torch.arange(grid_w), indexing='ij')
         # out_grid = [torch.to_float(out_grid[0]), torch.to_float(out_grid[1])]
         out_grid = [out_grid[0].type(torch.FloatTensor), out_grid[1].type(torch.FloatTensor)]
         grid_z = torch.unsqueeze(torch.zeros_like(out_grid[0]), dim=2) # (H,W,1)
@@ -135,14 +163,15 @@ class RgbContProj(nn.Module):
         grid_diff = torch.unsqueeze(torch.unsqueeze(pcl_xy, dim=2), dim=2) - grid_xy    # (BS,N_PTS,H,W,2)
         grid_val = self.apply_ideal_kernel_depth(grid_diff, N_pts, well_radius)    # (BS,N_PTS,H,W,2)
         grid_val = grid_val[:,:,:,:,0]*grid_val[:,:,:,:,1]*torch.unsqueeze(z,3)  # (BS,N_PTS,H,W)
+        # grid_val = grid_val[:,:,:,:,0]*grid_val[:,:,:,:,1]*z
         depth = torch.clamp(grid_val,0.,10.)
         return depth
 
-    def apply_ideal_kernel_depth(x, N_pts, well_radius=0.5):
+    def apply_ideal_kernel_depth(self, x, N_pts, well_radius=0.5):
         out = torch.where(torch.abs(x)<=well_radius, torch.ones_like(x), 10*torch.ones_like(x))
         return out    
 
-    def get_proj_prob_exp(d, beta=5., N_pts=1024, ideal=False):
+    def get_proj_prob_exp(self, d, beta=5., N_pts=1024, ideal=False):
         '''
         Probability of a point being projected at each pixel of the projection
         map
@@ -160,7 +189,7 @@ class RgbContProj(nn.Module):
         # ideal projection probabilities - ptob=1 for min depth, 0 for rest
             prob = torch.transpose(F.one_hot(torch.argmax(d_inv, dim=1), N_pts), [0,3,1,2])
         else:
-            prob = torch.nn.Softmax(d_inv*beta, dim=1) # for every pixel, apply softmax across all points
+            prob = F.softmax(d_inv*beta, dim=1) # for every pixel, apply softmax across all points
         return prob    
 
 class ContProj(nn.Module):
