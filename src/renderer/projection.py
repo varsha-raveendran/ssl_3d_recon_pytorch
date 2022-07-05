@@ -211,7 +211,7 @@ class ContProj(nn.Module):
         Returns:
             grid_val: float, (N_batch,H,W); output silhouette
         '''    
-        x, y, z = torch.split(pcl, 3, dim=2)
+        x, y, z = torch.chunk(pcl, 3, dim=2)
         pcl_norm = torch.concat([x, y, z], 2)
         pcl_xy = torch.concat([x,y], 2)
         out_grid = torch.meshgrid(torch.arange(grid_h), torch.arange(grid_w), indexing='ij')
@@ -224,10 +224,10 @@ class ContProj(nn.Module):
         grid_val = self.apply_kernel(grid_diff, sigma_sq)    # (BS,N_PTS,H,W,2)
         grid_val = grid_val[:,:,:,:,0]*grid_val[:,:,:,:,1]  # (BS,N_PTS,H,W)
         grid_val = torch.sum(grid_val, dim=1)          # (BS,H,W)
-        grid_val = torch.nn.Tanh(grid_val)
+        grid_val = torch.tanh(grid_val)
         return grid_val
 
-    def apply_kernel(x, sigma_sq=0.5):
+    def apply_kernel(self, x, sigma_sq=0.5):
         out = (torch.exp(-(x**2)/(2.*sigma_sq)))
         return out    
 
