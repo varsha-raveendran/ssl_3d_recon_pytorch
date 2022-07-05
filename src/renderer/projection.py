@@ -41,11 +41,11 @@ class World2Cam(nn.Module):
 		    ]
         
         # For batch - uncomment once debugging done
-        #rotmat_az = torch.permute(torch.stack(rotmat_az, 0), (2,0,1))  
-        #rotmat_el = torch.permute(torch.stack(rotmat_el, 0), [2,0,1])
+        rotmat_az = torch.permute(torch.stack(rotmat_az, 0), (2,0,1))  
+        rotmat_el = torch.permute(torch.stack(rotmat_el, 0), [2,0,1])
         # For debugging - comment once debugging done
-        rotmat_az = torch.stack(rotmat_az, 0)
-        rotmat_el = torch.stack(rotmat_el, 0)
+        # rotmat_az = torch.stack(rotmat_az, 0)
+        # rotmat_el = torch.stack(rotmat_el, 0)
 
         rotmat = torch.matmul(rotmat_el, rotmat_az)
 
