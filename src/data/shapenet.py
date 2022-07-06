@@ -38,7 +38,8 @@ class ShapeNet(torch.utils.data.Dataset):
         ])
         
         img_path = join(self.rendered_path , f'{self.category}/{filename}/render_{render_id}.png')
-        rgb_image =  cv2.imread(img_path, cv2.IMREAD_UNCHANGED)
+        #rgb_image =  cv2.imread(img_path, cv2.IMREAD_UNCHANGED)
+        rgb_image =  cv2.imread(img_path)
 
         img_tensor = transform(rgb_image)
         print(img_tensor.shape)
@@ -50,9 +51,6 @@ class ShapeNet(torch.utils.data.Dataset):
         #mask_path = join(self.rendered_path, f'{self.category}/{filename}/depth_{render_id}.png')
         #mask_image =  cv2.imread(mask_path, cv2.IMREAD_UNCHANGED)
         mask_tensor = transform(mask_image)
-        
-        
-        
         #Load point cloud
         pcl = np.load(self.pcl_path / Path(self.category) / filename / 'pointcloud_1024.npy').astype(np.float32)
         pcl = torch.from_numpy(pcl)

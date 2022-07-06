@@ -11,7 +11,7 @@ class ReconstructionNet(nn.Module):
         self.relu  = nn.ReLU()
         
         #Structure branch
-        self.cnn1 = nn.Conv2d(in_channels = 4, out_channels = 32, kernel_size = 3, stride=2, padding=(1,1))
+        self.cnn1 = nn.Conv2d(in_channels = 3, out_channels = 32, kernel_size = 3, stride=2, padding=(1,1))
         self.cnn2 = nn.Conv2d(in_channels = 32, out_channels = 64, kernel_size = 3, stride=2, padding=(1,1))
         self.cnn3 = nn.Conv2d(in_channels = 64, out_channels = 128, kernel_size = 3, stride=2, padding=(1,1))
         self.cnn4 = nn.Conv2d(in_channels = 128, out_channels = 256, kernel_size = 3, stride=2, padding=(1,1))
