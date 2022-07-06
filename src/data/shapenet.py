@@ -33,12 +33,6 @@ class ShapeNet(torch.utils.data.Dataset):
         render_id = self.image_ids[index]
         print(render_id)
         
-        """# Read only one of the projections for each model. Randomly choose the one
-        # out of 10 existing projections
-        if cnt==None:
-            cnt = np.random.randint(0,10)
-        """
-        
         #Load RGB view
         rgb_image = Image.open(self.rendered_path / Path(self.category)/ filename / Path('render_%s.png'%render_id))
         transform = transforms.Compose([
