@@ -2,8 +2,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torchsummary import summary
-from zmq import device
 
 class World2Cam(nn.Module):
     def __init__(self, ) -> None:
@@ -57,7 +55,7 @@ class World2Cam(nn.Module):
         tr_mat = torch.tile(tr_mat,[1,n_pts,1]) # [B,2048,3]
         rotmat = rotmat.type(torch.FloatTensor).to(device)
         #xyz_out = torch.matmul(rotmat,torch.permute((xyz),[0,2,1])) - torch.permute(tr_mat,[0,2,1])
-        xyz_out = torch.matmul(rotmat,xyz) - torch.permute(tr_mat,[0,2,1]).cuda()
+        xyz_out = torch.matmul(rotmat,xyz) - torch.permute(tr_mat,[0,2,1]).to(device)
         return torch.permute(xyz_out,[0,2,1])
 
 class PerspectiveTransform(nn.Module):
@@ -236,5 +234,5 @@ class ContProj(nn.Module):
         out = (torch.exp(-(x**2)/(2.*sigma_sq)))
         return out    
 
-model = World2Cam().cuda()
+
       
