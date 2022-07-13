@@ -72,8 +72,12 @@ def get_img_loss(gt, pred, mode='l2_sq', affinity_loss=False):
         pred_mask = (pred_white) + ((1.-pred_white))*1e6*torch.ones_like(pred_white)
         dist_masked_inv = pred_mask * dist_mat * gt_white
 
-        min_dist = torch.mean(torch.min(dist_masked, axis=[3,4]))
-        min_dist_inv = torch.mean(torch.min(dist_masked_inv, axis=[3,4]))
+        min_dist = torch.mean(torch.amin(dist_masked,(3,4)))
+        # dist_masked = torch.min(torch.min(dist_masked,4),3)
+        # min_dist = torch.mean(dist_masked)
+        min_dist_inv = torch.mean(torch.amin(dist_masked_inv,(3,4)))
+        # dist_masked_inv = torch.min(torch.min(dist_masked_inv,4),3)
+        # min_dist_inv = torch.mean(dist_masked_inv)
 
     return loss,min_dist,min_dist_inv
 
@@ -114,9 +118,9 @@ def get_pose_loss(gt, pred, mode='l1'):
         loss = torch.sqrt(loss)
         loss = torch.mean(loss)
     elif mode == 'cosine_dist':
-	# print '\nCosine Distance\n'
-    	pred_norm = torch.sqrt(torch.sum(pred**2, axis=-1)+1e-8)
-    	loss = 1. - (torch.sum(gt*pred, axis=-1)/(pred_norm+1e-8))
+        pred_norm = torch.sqrt(torch.sum(pred**2, axis=-1)+1e-8)
+        loss = 1. - (torch.sum(gt*pred, axis=-1)/(pred_norm+1e-8))
+    
     return loss
 
 def get_3d_loss(gt, pred, mode='chamfer'):
@@ -141,42 +145,5 @@ def get_3d_loss(gt, pred, mode='chamfer'):
 
 
 
-# def iou_pytorch(outputs: torch.Tensor, labels: torch.Tensor):
-#     # You can comment out this line if you are passing tensors of equal shape
-#     # But if you are passing output from UNet or something it will most probably
-#     # be with the BATCH x 1 x H x W shape
-#     # outputs = outputs.squeeze(1)  # BATCH x 1 x H x W => BATCH x H x W
-
-#     SMOOTH = 1e-6
-    
-#     intersection = (outputs & labels).float().sum((1, 2))  # Will be zero if Truth=0 or Prediction=0
-#     union = (outputs | labels).float().sum((1, 2))         # Will be zero if both are 0
-    
-#     iou = (intersection + SMOOTH) / (union + SMOOTH)  # We smooth our devision to avoid 0/0
-    
-#     thresholded = torch.clamp(20 * (iou - 0.5), 0, 10).ceil() / 10  # This is equal to comparing with thresolds
-    
-#     return thresholded.mean()  # Or thresholded.mean() if you are interested in average across the batch
-
-
-# def get_partseg_loss(gt, pred, loss='ce_logits'):
-#     '''
-#     Calculate part segmentation loss
-#     Args:
-#         gt_pcl: (BS,N_pts); GT point cloud
-#         pred_pcl: (BS,N_pts,N_cls); predicted point cloud
-#         loss: str; type of loss to be used: 'ce_logits' or 'iou'
-#     Returns:
-#         loss: (BS); averaged loss
-#     '''
-#     if loss == 'ce_logits':
-#     # print '\nBCE Logits Loss\n'
-#         loss = F.nll_loss(F.softmax(pred), gt)
-#     elif loss == 'iou':
-#     # print '\nIoU metric\n'
-#         # pred_idx = torch.argmax(pred, axis=3)
-#         # loss = tf.metrics.mean_iou(gt, pred_idx, NUM_CLASSES+1) # tuple of (iou, conf_mat)
-#         loss = iou_pytorch(gt,pred)
-#     return loss
 
 
