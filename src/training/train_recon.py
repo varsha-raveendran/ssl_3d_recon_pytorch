@@ -46,9 +46,9 @@ def train(config):
             # move batch to device
             ShapeNet.move_batch_to_device(batch, device)
             optimizer.zero_grad()
-            prediction = model(batch['img_rgb'])
-            print("prediction shape: ", prediction.shape)
-            loss_total = loss_criterion(prediction, batch['pcl'])
+            pred_img, pred_mask = model(batch['img_rgb'])
+            print("prediction shape: ", pred_img.shape)
+            loss_total = loss_criterion(pred_img, batch['pcl'])
             loss_total.backward()
 
             optimizer.step()
@@ -74,9 +74,9 @@ def train(config):
 
                     with torch.no_grad():
                         print(batch_val['img_rgb'].shape)
-                        prediction = model(batch_val['img_rgb'])
+                        pred_img, pred_mask = model(batch_val['img_rgb'])
 
-                    loss_total_val = loss_criterion(prediction, batch_val['pcl']).item()
+                    loss_total_val = loss_criterion(pred_img, batch_val['pcl']).item()
 
                 # add metric
                 wandb.log({"train_loss": train_loss_running})
