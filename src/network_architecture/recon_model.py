@@ -79,8 +79,8 @@ class ReconstructionNet(nn.Module):
         y = y.view(y.size(0), 3, 1024) 
         y = self.sigmoid(y)
         print(y.shape , " ", x.shape)    
-        self.z = torch.concat([x,y], axis=1)
-        print("z : " ,self.z.shape)
+        #self.z = torch.concat([x,y], axis=1)
+        #print("z : " ,self.z.shape)
         if not self.return_feat:
             return x, y
         else:
