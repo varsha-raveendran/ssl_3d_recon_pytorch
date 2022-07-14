@@ -54,13 +54,26 @@ class ShapeNet(torch.utils.data.Dataset):
         #Load point cloud
         pcl = np.load(self.pcl_path / Path(self.category) / filename / 'pointcloud_1024.npy').astype(np.float32)
         pcl = torch.from_numpy(pcl)
+        # Read only one of the projections for each model. Randomly choose one out of 10 existing projections
+        cnt = np.random.randint(0,10) #Cnt is the random projection we are reading 
+        with open(join(self.rendered_path , f'{self.category}/{filename}', 'view.txt'), 'r') as fp:
+            angles = [item.split('\n')[0] for item in fp.readlines()]
         
+        angle = angles[int(cnt)]
+        angle = [float(item)*(np.pi/180.) for item in angle.split(' ')[:2]]    
+        pose = np.array(angle)
+
+        gt_angle = angles[int(render_id)]
+        gt_angle = [float(item)*(np.pi/180.) for item in gt_angle.split(' ')[:2]]   
+        gt_pose = np.array(gt_angle)
+
         return {
             'name': filename,
             'img_rgb' : img_tensor.float() ,
             'img_mask' : mask_tensor.float() ,
             'pcl' : torch.reshape(pcl, ( 3, 1024)),
-            #'pose' : 
+            'gt_pose' : gt_pose,
+            'random_pose': pose 
         }
 
     def __len__(self):
