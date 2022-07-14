@@ -6,7 +6,7 @@ from pathlib import Path
 from src.data.shapenet import ShapeNet
 from src.network_architecture.recon_model import ReconstructionNet
 from src.renderer.projection import World2Cam, PerspectiveTransform, RgbContProj, ContProj
-from loss.loss_functions import *
+from src.loss.loss import ImageLoss,GCCLoss,PoseLoss
 
 
 import wandb
@@ -40,9 +40,10 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
 
             recon_prediction1 = model(batch['img_rgb'])
 
-            ## USE POSENET TO GET POSE PREDICTIONS
+            ## USE POSENET TO GET POSE PREDICTIONS (B,2)
 
             ## USE THE PORJECTION MODULE TO GET PROJECTIONS FROM PC1 AND MASKS
+
             # Initialize projection modules
             world2cam = World2Cam()
             perspective_transform = PerspectiveTransform()
@@ -52,6 +53,8 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
 
 
             ## USE THE PROJECTIONS AS INPUT TO RECONNET AND POSENET
+
+            ## v0,1 : rnadomly 
 
 
             ## GET LOSSES
