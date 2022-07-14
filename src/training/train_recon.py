@@ -21,7 +21,8 @@ def train(config):
     
     device = config['device']
     # declare device
-    device = torch.device('cpu')    
+    # device = torch.device('cpu')
+    device = torch.device(config['device'])    
     model = ReconstructionNet()
     
     model.to(device)
