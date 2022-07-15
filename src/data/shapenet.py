@@ -22,7 +22,7 @@ class ShapeNet(torch.utils.data.Dataset):
         assert split in ['train', 'val', 'overfit']
         self.category = category
         self.items = np.load('src/data/splits/shapenet/images_list_%s_%s.npy'%(category, split), allow_pickle=True)
-        print(self.items.shape)
+        # print(self.items.shape)
         self.image_ids = [item[0].split('_')[1] for item in self.items]
         self.file_names = [item[0].split('_')[0] for item in self.items]
         
@@ -30,7 +30,7 @@ class ShapeNet(torch.utils.data.Dataset):
         
         filename = self.file_names[index]
         render_id = self.image_ids[index]
-        print(render_id)
+        # print(render_id)
         
         #Load RGB view
         # rgb_image = Image.open(self.rendered_path / Path(self.category)/ filename / Path('render_%s.png'%render_id))
@@ -41,14 +41,15 @@ class ShapeNet(torch.utils.data.Dataset):
         img_path = join(self.rendered_path , f'{self.category}/{filename}/render_{render_id}.png')
         #rgb_image =  cv2.imread(img_path, cv2.IMREAD_UNCHANGED)
         rgb_image =  cv2.imread(img_path)
-
+        rgb_image = cv2.resize(rgb_image,(60,60))
         img_tensor = transform(rgb_image)
-        print(img_tensor.shape)
+        # print(img_tensor.shape)
         
         mask_image = Image.open(self.rendered_path / Path(self.category) / filename / Path('depth_%s.png'%render_id))
         transform = transforms.Compose([
             transforms.PILToTensor()
         ])
+        mask_image = mask_image.resize((60,60),Image.ANTIALIAS)
         #mask_path = join(self.rendered_path, f'{self.category}/{filename}/depth_{render_id}.png')
         #mask_image =  cv2.imread(mask_path, cv2.IMREAD_UNCHANGED)
         mask_tensor = transform(mask_image)

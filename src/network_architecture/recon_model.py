@@ -19,7 +19,7 @@ class ReconstructionNet(nn.Module):
         self.cnn4 = nn.Conv2d(in_channels = 128, out_channels = 256, kernel_size = 3, stride=2, padding=(1,1))
         
         
-        self.linear1 = nn.Linear(in_features= 256*14*14 , out_features=128) 
+        self.linear1 = nn.Linear(in_features= 256*4*4 , out_features=128) 
         self.linear2 = nn.Linear(in_features= 128 , out_features=128)
         self.linear3 = nn.Linear(in_features= 128 , out_features=1024*3) #TODO: make 1024 configurable
         
@@ -27,7 +27,7 @@ class ReconstructionNet(nn.Module):
         self.color_cnn1 = nn.Conv2d(in_channels = 3, out_channels = 32, kernel_size = 3, stride=2, padding=(1,1))
         self.color_cnn2 = nn.Conv2d(in_channels = 32, out_channels = 64, kernel_size = 3, stride=2, padding=(1,1))
         
-        self.color_linear1 = nn.Linear(in_features= 64*56*56 , out_features=128)
+        self.color_linear1 = nn.Linear(in_features= 64*15*15 , out_features=128)
         self.color_linear2 = nn.Linear(in_features= 128 , out_features=128)
         self.color_linear3 = nn.Linear(in_features= 128 , out_features=128)
         
@@ -48,16 +48,16 @@ class ReconstructionNet(nn.Module):
         x = self.relu(self.cnn2(x))
         x = self.relu(self.cnn3(x))
         x = self.relu(self.cnn4(x))
-        print(x.shape)
+        # print(x.shape)
         x = x.view(x.size(0), -1)
-        print(x.shape)
+        # print(x.shape)
         x = self.relu(self.linear1(x))
         enc_pcl = x
         x1 = self.relu(self.linear2(x))
         x = self.linear3(x1)
-        print("before view: ", x.shape)
+        # print("before view: ", x.shape)
         x = x.view(x.size(0), 3, 1024)        
-        print("after view: ",x.shape)
+        # print("after view: ",x.shape)
         
         y = self.relu(self.color_cnn1(img_ip))
         y = self.relu(self.color_cnn2(y))
@@ -66,19 +66,19 @@ class ReconstructionNet(nn.Module):
         y = self.relu(self.color_linear1(y))
         
         enc_feat = torch.concat([enc_pcl, y], axis=0)
-        print(enc_feat.shape)
+        # print(enc_feat.shape)
         y = self.relu(self.color_linear2(y))
         y = self.relu(self.color_linear3(y))        
-        print(x1.shape, " cat " , y.shape)
+        # print(x1.shape, " cat " , y.shape)
         y = torch.concat([x1,y], axis=1)
           
-        print(y.shape)
+        # print(y.shape)
         y = self.relu(self.color_linear4(y))
         y = self.color_linear5(y)
         
         y = y.view(y.size(0), 3, 1024) 
         y = self.sigmoid(y)
-        print(y.shape , " ", x.shape)    
+        # print(y.shape , " ", x.shape)    
         #self.z = torch.concat([x,y], axis=1)
         #print("z : " ,self.z.shape)
         if not self.return_feat:
