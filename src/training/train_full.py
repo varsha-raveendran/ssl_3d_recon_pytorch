@@ -64,21 +64,25 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
             optimizer.zero_grad()
 
 
-            pcl_out = pose_out = img_out = pcl_rgb_out = []
-            pcl_out_rot = pcl_out_persp = mask_out = []
-
-            pcl_out.append(pcl_xyz)
-            pcl_rgb_out.append(pcl_rgb)
+            # pcl_out = pose_out = img_out = pcl_rgb_out = []
+            pcl_out_rot = []
+            pcl_out_persp = []
+            mask_out = []
+            pcl_out = []
+            pose_out = []
+            img_out = []
+            pcl_rgb_out = []
 
             ## GET RECONSTRUCTION FROM INPUT IMAGE
             pcl_xyz,pcl_rgb = recon_net(batch['img_rgb'])
+            pcl_out.append(pcl_xyz)
+            pcl_rgb_out.append(pcl_rgb)
 
             ## Currently hard coded number of random poses to 2
             pose_ip = batch['random_pose'] ## Batch Size x 2 x 2
 
             ## USE POSENET TO GET POSE PREDICTIONS (B,2)
             pose_out.append(pose_net(batch['img_rgb']))
-
             # v0,v1,v^
             pose_all = torch.concat([torch.unsqueeze(pose_out[0], axis=1), pose_ip], axis=1)
 
@@ -90,13 +94,13 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
                 # img_out = get_proj_rgb(pcl_out_pers, pcl, 1024, 60, 60, device="cuda")
                 # mask_out = get_proj_mask(pcl_out_pers, 60, 60, 1024, 0.4, device="cuda")
                 pcl_out_rot.append(world2cam(pcl_out[0], pose_all[:, idx, 0],
-                    pose_all[:,idx,1], 2., 2., len(batch),device="cuda"))
+                    pose_all[:,idx,1], 2., 2., len(batch),config["device"]))
                 pcl_out_persp.append(perspective_transform(pcl_out_rot[idx],
-                    len(batch),device="cuda"))
+                    len(batch),config["device"]))
                 img_out.append(get_proj_rgb(pcl_out_persp[idx], pcl_rgb_out[0], 1024,
-                    64, 64,device="cuda")[0])
-                mask_out.append(get_proj_mask(pcl_out_persp[idx], 64, 64,
-                    1024, 0.4,device="cuda"))
+                    224, 224,1., 100, 'rgb',config["device"])[0])
+                mask_out.append(get_proj_mask(pcl_out_persp[idx], 224, 224,
+                    1024, 0.4,config["device"]))
             
             # Reconstruct the point cloud from and predict the pose of projected images
             for idx in range(config['n_proj']):
@@ -167,20 +171,16 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
 def main(config):
 
     trainset = ShapeNet('train' if not config['is_overfit'] else 'overfit', config['category'])
-    trainloader = torch.utils.data.DataLoader(trainset, batch_size=config['batch_size'], shuffle=True, num_workers=2)
+    trainloader = torch.utils.data.DataLoader(trainset, batch_size=config['batch_size'], shuffle=True)
 
     valset = ShapeNet('val' if not config['is_overfit'] else 'overfit', config['category'])
-    valloader = torch.utils.data.DataLoader(valset, batch_size=config['batch_size'], shuffle=False, num_workers=2)
+    valloader = torch.utils.data.DataLoader(valset, batch_size=config['batch_size'], shuffle=False)
     
     # device = 
     # declare device
     device = torch.device(config['device'])  ## CHANGE TO CUDA  
     recon_net = ReconstructionNet()
     pose_net = PoseNet() ## Need to merge
-    pose_net = None
 
-    model = ReconstructionNet() 
-    
-    # model.to(device)
 
     train(recon_net,pose_net,device,config,trainloader,valloader)

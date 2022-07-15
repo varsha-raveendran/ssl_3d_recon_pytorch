@@ -3,7 +3,7 @@ from scipy.spatial.distance import cdist as np_cdist
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-# from chamfer_distance import ChamferDistance
+# from src.loss.chamfer_distance import ChamferDistance
 
 
 class ImageLoss(nn.Module):

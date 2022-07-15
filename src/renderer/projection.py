@@ -118,9 +118,6 @@ class RgbContProj(nn.Module):
         # Normalize probabilities
         prob = prob/(torch.sum(prob, dim=1, keepdim=True) + 1e-8)
         # Expectation of feature values
-        print(torch.unsqueeze(prob, dim=-1).shape)
-        print(torch.permute(torch.unsqueeze(torch.unsqueeze(feat.type(torch.float32),
-        dim=2), dim=2), [0,4,2,3,1]).shape)
         proj_feat = torch.unsqueeze(prob, dim=-1) * torch.permute(torch.unsqueeze(torch.unsqueeze(feat.type(torch.float32),
         dim=2), dim=2), [0,4,2,3,1]) # (BS,N_pts,H,W,N_cls)
         proj_feat = torch.sum(proj_feat, dim=1) # (BS,H,W,N_cls) --> one-hot
