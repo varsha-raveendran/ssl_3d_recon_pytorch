@@ -58,7 +58,11 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
 
     for epoch in range(config['max_epochs']):
         train_loss_running = 0 
+        print('**********************************************')
+        print(epoch)
         for i, batch in enumerate(trainloader):
+            
+            
             # move batch to device
             ShapeNet.move_batch_to_device(batch, device)
             optimizer.zero_grad()
@@ -74,6 +78,7 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
             pcl_rgb_out = []
 
             ## GET RECONSTRUCTION FROM INPUT IMAGE
+            # print('OG IMAGE : ',batch['img_rgb'].shape)
             pcl_xyz,pcl_rgb = recon_net(batch['img_rgb'])
             pcl_out.append(pcl_xyz)
             pcl_rgb_out.append(pcl_rgb)
@@ -93,40 +98,62 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
                 # pcl_out_pers = perspective_transform(pcl_out_rot, 1, device="cuda")
                 # img_out = get_proj_rgb(pcl_out_pers, pcl, 1024, 60, 60, device="cuda")
                 # mask_out = get_proj_mask(pcl_out_pers, 60, 60, 1024, 0.4, device="cuda")
-                pcl_out_rot.append(world2cam(pcl_out[0], pose_all[:, idx, 0],
-                    pose_all[:,idx,1], 2., 2., len(batch),config["device"]))
-                pcl_out_persp.append(perspective_transform(pcl_out_rot[idx],
-                    len(batch),config["device"]))
-                img_out.append(get_proj_rgb(pcl_out_persp[idx], pcl_rgb_out[0], 1024,
-                    224, 224,1., 100, 'rgb',config["device"])[0])
-                mask_out.append(get_proj_mask(pcl_out_persp[idx], 224, 224,
+                # print(idx)
+                # pcl_out_rot.append(world2cam(pcl_out[0], pose_all[:, idx, 0],
+                #     pose_all[:,idx,1], 2., 2., len(batch),config["device"]))
+                # pcl_out_persp.append(perspective_transform(pcl_out_rot[idx],
+                #     len(batch),config["device"]))
+                # img_out.append(get_proj_rgb(pcl_out_persp[idx], pcl_rgb_out[0], 1024,
+                #     224, 224,1., 100, 'rgb',config["device"])[0])
+                # mask_out.append(get_proj_mask(pcl_out_persp[idx], 224, 224,
+                #     1024, 0.4,config["device"]))
+
+                # print("PointClouds:", pcl_out[0].shape)
+                pcl_out_rot = world2cam(pcl_out[0], pose_all[:, idx, 0],
+                    pose_all[:,idx,1], 2., 2., config['batch_size'],config["device"])
+                pcl_out_persp = perspective_transform(pcl_out_rot,
+                    config['batch_size'],config["device"])    
+                temp_img_out = get_proj_rgb(pcl_out_persp, pcl_rgb_out[0], 1024,
+                    60, 60,1., 100, 'rgb',config["device"])
+                # print('Proje img out : ',temp_img_out[0].shape)
+                img_out.append(temp_img_out[0])
+                mask_out.append(get_proj_mask(pcl_out_persp, 60, 60,
                     1024, 0.4,config["device"]))
-            
+            # print("UM",img_out[0][0].shape)
+            # print(img_out[1][0].shape)
             # Reconstruct the point cloud from and predict the pose of projected images
             for idx in range(config['n_proj']):
-                pcl_xyz, pcl_rgb = recon_net(img_out[idx])
+                # print(idx)
+                # print('Pojected images : ', img_out[idx].shape)
+                # print(torch.permute(img_out[idx][0],[0, 3, 1, 2]).shape)
+                # temp_img = torch.permute(img_out[0][idx],[0, 3, 1, 2]).contiguous()
+                pcl_xyz, pcl_rgb = recon_net(torch.permute(img_out[idx],[0, 3, 1, 2]).contiguous())
                 pcl_out.append(pcl_xyz)
                 pcl_rgb_out.append(pcl_rgb)
 
-                pose_out.append(pose_net(img_out[idx]))
+                pose_out.append(pose_net(torch.permute(img_out[idx],[0, 3, 1, 2]).contiguous()))
 
             # Define Losses
             # 2D Consistency Loss - L2
-            img_ae_loss, _, _ = img_loss(batch['img_rgb'], img_out[0], 'l2_sq')
-            mask_ae_loss, mask_fwd, mask_bwd = img_loss(batch['img_mask'], mask_out[0],
-                    'bce', affinity_loss=True)
-
-            # 3D Consistency Loss
-            consist_3d_loss = 0.
-            for idx in range(config['n_proj']):
-                # if args._3d_loss_type == 'adj_model':
-                #     consist_3d_loss += get_3d_loss(pcl_out[idx], pcl_out[idx+1], 'chamfer')
-                # elif args._3d_loss_type == 'init_model':
-                consist_3d_loss += gcc_loss(pcl_out[idx], pcl_out[0], 'chamfer')
+            # print('IMAGE LOSS : ',torch.permute(torch.stack(img_out)[0],[0, 3, 1, 2]).contiguous().shape)
+            img_ae_loss, _, _ = img_loss(batch['img_rgb'], torch.permute(torch.stack(img_out)[0],[0, 3, 1, 2]).contiguous()
+                        , 'l2_sq')
+            # print('MASK CHECK : ',batch['img_mask'].shape,torch.unsqueeze(torch.stack(mask_out)[0],0).shape)
+            mask_ae_loss, mask_fwd, mask_bwd = img_loss(batch['img_mask'], torch.unsqueeze(torch.stack(mask_out)[0],1),
+                    'bce', affinity_loss=False)
 
             # Pose Loss
             pose_loss_pose = pose_loss(pose_ip, torch.stack(pose_out[2:], axis=1), 'l1')
 
+            # # 3D Consistency Loss
+            # consist_3d_loss = 0.
+            # for idx in range(config['n_proj']):
+            #     # if args._3d_loss_type == 'adj_model':
+            #     #     consist_3d_loss += get_3d_loss(pcl_out[idx], pcl_out[idx+1], 'chamfer')
+            #     # elif args._3d_loss_type == 'init_model':
+            #     consist_3d_loss += gcc_loss(pcl_out[idx], pcl_out[0], 'chamfer')
+
+            consist_3d_loss = 0
             ##TODO
             # Symmetry loss - assumes symmetry of point cloud about z-axis
             # # Helps obtaining output aligned along z-axis
@@ -146,22 +173,24 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
                             (config['lambda_mask_fwd']*mask_fwd) + (config['lambda_mask_bwd']*mask_bwd)
             # if args.symmetry_loss:
             #     recon_loss += (config['lambda_symm']*symm_loss)
-            pose_loss = (config['lambda_ae_pose']*img_ae_loss) + (config['lambda_pose']*pose_loss_pose)\
+            pose_loss_val = (config['lambda_ae_pose']*img_ae_loss) + (config['lambda_pose']*pose_loss_pose)\
                             + (config['lambda_mask_pose']*mask_ae_loss)
 
             
-            loss.backward()
-            recon_loss.backward()
-            pose_loss.backward()
+            loss.backward(retain_graph=True)
+            recon_loss.backward(retain_graph=True)
+            pose_loss_val.backward(retain_graph=True)
 
             optimizer.step()
 
             print('Iteration : ',i)
             print('Loss : ',loss.item())
             print('recon_loss : ',recon_loss.item())
-            print('pose_loss : ',pose_loss.item())
+            print('pose_loss : ',pose_loss_val.item())
 
             ## VALIDATION
+        torch.save(recon_net.state_dict(), f'src/runs/{config["experiment_name_recon"]}/model_best.ckpt')
+        torch.save(pose_net.state_dict(), f'src/runs/{config["experiment_name_pose"]}/model_best.ckpt')
 
 
             
