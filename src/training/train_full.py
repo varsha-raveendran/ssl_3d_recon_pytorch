@@ -110,9 +110,9 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
 
                 # print("PointClouds:", pcl_out[0].shape)
                 pcl_out_rot = world2cam(pcl_out[0], pose_all[:, idx, 0],
-                    pose_all[:,idx,1], 2., 2., config['batch_size'],config["device"])
+                    pose_all[:,idx,1], 2., 2., batch['img_rgb'].shape[0],config["device"])
                 pcl_out_persp = perspective_transform(pcl_out_rot,
-                    config['batch_size'],config["device"])    
+                    batch['img_rgb'].shape[0],config["device"])    
                 temp_img_out = get_proj_rgb(pcl_out_persp, pcl_rgb_out[0], 1024,
                     60, 60,1., 100, 'rgb',config["device"])
                 # print('Proje img out : ',temp_img_out[0].shape)
@@ -138,7 +138,7 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
             # print('IMAGE LOSS : ',torch.permute(torch.stack(img_out)[0],[0, 3, 1, 2]).contiguous().shape)
             img_ae_loss, _, _ = img_loss(batch['img_rgb'], torch.permute(torch.stack(img_out)[0],[0, 3, 1, 2]).contiguous()
                         , 'l2_sq')
-            # print('MASK CHECK : ',batch['img_mask'].shape,torch.unsqueeze(torch.stack(mask_out)[0],0).shape)
+            # print('MASK CHECK : ',batch['img_mask'].shape,torch.unsqueeze(torch.stack(mask_out)[0],1).shape)
             mask_ae_loss, mask_fwd, mask_bwd = img_loss(batch['img_mask'], torch.unsqueeze(torch.stack(mask_out)[0],1),
                     'bce', affinity_loss=False)
 
