@@ -1,6 +1,7 @@
 from pathlib import Path
 import json
 from os.path import join, abspath, basename
+from random import random
 from PIL import Image
 import numpy as np
 import torch
@@ -54,18 +55,25 @@ class ShapeNet(torch.utils.data.Dataset):
         #Load point cloud
         pcl = np.load(self.pcl_path / Path(self.category) / filename / 'pointcloud_1024.npy').astype(np.float32)
         pcl = torch.from_numpy(pcl)
-        # Read only one of the projections for each model. Randomly choose one out of 10 existing projections
-        cnt = np.random.randint(0,10) #Cnt is the random projection we are reading 
+
+        # Get K poses, TODO: K should be passed in the __init__ later on
+        K = 2
+        # Read K projections for each model. Randomly choose K out of 10 existing projections
         with open(join(self.rendered_path , f'{self.category}/{filename}', 'view.txt'), 'r') as fp:
             angles = [item.split('\n')[0] for item in fp.readlines()]
-        
-        angle = angles[int(cnt)]
-        angle = [float(item)*(np.pi/180.) for item in angle.split(' ')[:2]]    
-        pose = np.array(angle)
+        poses = []
+        for k in range(K):
+            index = np.random.randint(0,10) 
+            angle = angles[int(index)]
+            angle = [float(item)*(np.pi/180.) for item in angle.split(' ')[:2]]    
+            pose = np.array(angle)
+            poses.append(torch.from_numpy(pose))
 
         gt_angle = angles[int(render_id)]
         gt_angle = [float(item)*(np.pi/180.) for item in gt_angle.split(' ')[:2]]   
         gt_pose = np.array(gt_angle)
+
+        random_pose = torch.stack(poses)
 
         return {
             'name': filename,
@@ -73,7 +81,7 @@ class ShapeNet(torch.utils.data.Dataset):
             'img_mask' : mask_tensor.float() ,
             'pcl' : torch.reshape(pcl, ( 3, 1024)),
             'gt_pose' : gt_pose,
-            'random_pose': pose 
+            'random_pose': random_pose 
         }
 
     def __len__(self):
@@ -84,5 +92,6 @@ class ShapeNet(torch.utils.data.Dataset):
         batch['img_rgb'] = batch['img_rgb'].to(device)
         batch['img_mask'] = batch['img_mask'].to(device)
         batch['pcl'] = batch['pcl'].to(device)
-
+        batch['gt_pose'] = batch['gt_pose'].to(device)
+        batch['random_pose'] = batch['random_pose'].to(device)
     
