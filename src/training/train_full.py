@@ -189,8 +189,8 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
             print('pose_loss : ',pose_loss_val.item())
 
             ## VALIDATION
-        torch.save(recon_net.state_dict(), f'src/runs/{config["experiment_name_recon"]}/model_best.ckpt')
-        torch.save(pose_net.state_dict(), f'src/runs/{config["experiment_name_pose"]}/model_best.ckpt')
+        torch.save(recon_net.state_dict(), f'src/runs/{config["experiment_name"]}/recon_model_best.ckpt')
+        torch.save(pose_net.state_dict(), f'src/runs/{config["experiment_name"]}/pose_model_best.ckpt')
 
 
             
