@@ -36,7 +36,7 @@ class ImageLoss(nn.Module):
             min_dist: (); averaged forward affinity distance
             min_dist_inv: (); averaged backward affinity distance
         '''
-        grid_h, grid_w = 60, 60
+        grid_h, grid_w = 64, 64
         dist_mat = self.grid_dist(grid_h, grid_w)
         min_dist = min_dist_inv = 0
         if mode=='l2_sq':
@@ -63,10 +63,10 @@ class ImageLoss(nn.Module):
             gt_mask = gt #+ (1.-gt)*1e6*tf.ones_like(gt)
             gt_white = torch.unsqueeze(torch.unsqueeze(gt,3),3)
             # print('loss:',gt_white.shape)
-            gt_white = gt_white.repeat(1,1,1,1,grid_h,grid_w) ### Check tile function
+            gt_white = gt_white.repeat(1,1,1,grid_h,grid_w) ### Check tile function
 
             pred_white = torch.unsqueeze(torch.unsqueeze(pred,3),3)
-            pred_white = pred_white.repeat(1,1,1,1,grid_h,grid_w) ### Check tile function
+            pred_white = pred_white.repeat(1,1,1,grid_h,grid_w) ### Check tile function
 
             gt_white_th = gt_white + (1.-gt_white)*1e6*torch.ones_like(gt_white)
             dist_masked = gt_white_th * torch.from_numpy(dist_mat).cuda() * pred_white

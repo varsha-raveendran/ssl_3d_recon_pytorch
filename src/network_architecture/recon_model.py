@@ -27,7 +27,7 @@ class ReconstructionNet(nn.Module):
         self.color_cnn1 = nn.Conv2d(in_channels = 3, out_channels = 32, kernel_size = 3, stride=2, padding=(1,1))
         self.color_cnn2 = nn.Conv2d(in_channels = 32, out_channels = 64, kernel_size = 3, stride=2, padding=(1,1))
         
-        self.color_linear1 = nn.Linear(in_features= 64*15*15 , out_features=128)
+        self.color_linear1 = nn.Linear(in_features= 64*16*16 , out_features=128)
         self.color_linear2 = nn.Linear(in_features= 128 , out_features=128)
         self.color_linear3 = nn.Linear(in_features= 128 , out_features=128)
         

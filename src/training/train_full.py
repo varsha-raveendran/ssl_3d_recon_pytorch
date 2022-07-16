@@ -2,6 +2,7 @@ from turtle import pos
 import numpy as np
 import torch
 from pathlib import Path
+from pytorch3d.loss import chamfer_distance
 
 from src.data.shapenet import ShapeNet
 from src.network_architecture.recon_model import ReconstructionNet
@@ -114,10 +115,10 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
                 pcl_out_persp = perspective_transform(pcl_out_rot,
                     batch['img_rgb'].shape[0],config["device"])    
                 temp_img_out = get_proj_rgb(pcl_out_persp, pcl_rgb_out[0], 1024,
-                    60, 60,1., 100, 'rgb',config["device"])
+                    64, 64,1., 100, 'rgb',config["device"])
                 # print('Proje img out : ',temp_img_out[0].shape)
                 img_out.append(temp_img_out[0])
-                mask_out.append(get_proj_mask(pcl_out_persp, 60, 60,
+                mask_out.append(get_proj_mask(pcl_out_persp, 64, 64,
                     1024, 0.4,config["device"]))
             # print("UM",img_out[0][0].shape)
             # print(img_out[1][0].shape)
@@ -145,15 +146,15 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
             # Pose Loss
             pose_loss_pose = pose_loss(pose_ip, torch.stack(pose_out[2:], axis=1), 'l1')
 
-            # # 3D Consistency Loss
-            # consist_3d_loss = 0.
-            # for idx in range(config['n_proj']):
-            #     # if args._3d_loss_type == 'adj_model':
-            #     #     consist_3d_loss += get_3d_loss(pcl_out[idx], pcl_out[idx+1], 'chamfer')
-            #     # elif args._3d_loss_type == 'init_model':
-            #     consist_3d_loss += gcc_loss(pcl_out[idx], pcl_out[0], 'chamfer')
+            # 3D Consistency Loss
+            consist_3d_loss = 0.
+            for idx in range(config['n_proj']):
+                # if args._3d_loss_type == 'adj_model':
+                #     consist_3d_loss += get_3d_loss(pcl_out[idx], pcl_out[idx+1], 'chamfer')
+                # elif args._3d_loss_type == 'init_model':
+                consist_3d_loss += chamfer_distance(pcl_out[idx], pcl_out[0])
 
-            consist_3d_loss = 0
+            # consist_3d_loss = 0
             ##TODO
             # Symmetry loss - assumes symmetry of point cloud about z-axis
             # # Helps obtaining output aligned along z-axis

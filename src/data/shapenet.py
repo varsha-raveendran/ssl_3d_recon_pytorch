@@ -41,7 +41,7 @@ class ShapeNet(torch.utils.data.Dataset):
         img_path = join(self.rendered_path , f'{self.category}/{filename}/render_{render_id}.png')
         #rgb_image =  cv2.imread(img_path, cv2.IMREAD_UNCHANGED)
         rgb_image =  cv2.imread(img_path)
-        rgb_image = cv2.resize(rgb_image,(60,60))
+        rgb_image = cv2.resize(rgb_image,(64,64))
         img_tensor = transform(rgb_image)
         # print(img_tensor.shape)
         
@@ -49,7 +49,7 @@ class ShapeNet(torch.utils.data.Dataset):
         transform = transforms.Compose([
             transforms.PILToTensor()
         ])
-        mask_image = mask_image.resize((60,60),Image.ANTIALIAS)
+        mask_image = mask_image.resize((64,64),Image.ANTIALIAS)
         #mask_path = join(self.rendered_path, f'{self.category}/{filename}/depth_{render_id}.png')
         #mask_image =  cv2.imread(mask_path, cv2.IMREAD_UNCHANGED)
         mask_tensor = transform(mask_image)
