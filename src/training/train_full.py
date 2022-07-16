@@ -2,7 +2,7 @@ from turtle import pos
 import numpy as np
 import torch
 from pathlib import Path
-from pytorch3d.loss import chamfer_distance
+# from pytorch3d.loss import chamfer_distance
 
 from src.data.shapenet import ShapeNet
 from src.network_architecture.recon_model import ReconstructionNet
@@ -16,7 +16,7 @@ import wandb
 
 def train(recon_net,pose_net,device,config,trainloader,valloader):
 
-
+    wandb.init(project='v1',reinit=True)
     print("training model!")
     # loss_criterion = torch.nn.MSELoss()
 
@@ -119,8 +119,17 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
                 # print('Proje img out : ',temp_img_out[0].shape)
                 img_out.append(temp_img_out[0])
                 mask_out.append(get_proj_mask(pcl_out_persp, 64, 64,
-                    1024, 0.4,config["device"]))
+                    1024, 0.4,config["device"])) ### Invert mask and image(?)
             # print("UM",img_out[0][0].shape)
+
+            temp_img = torch.clone(img_out[0][0])
+            temp_mask = torch.clone(mask_out[0])
+            images = wandb.Image((temp_img.cpu().detach().numpy()*255).astype(np.uint8), caption="Top: Output, Bottom: Input")
+            masks = wandb.Image((temp_mask.cpu().detach().numpy()*255).astype(np.uint8), caption="Top: Output, Bottom: Input")
+            log_list = [images, masks]
+            wandb.log({"image": log_list})
+
+
             # print(img_out[1][0].shape)
             # Reconstruct the point cloud from and predict the pose of projected images
             for idx in range(config['n_proj']):
@@ -139,20 +148,21 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
             # print('IMAGE LOSS : ',torch.permute(torch.stack(img_out)[0],[0, 3, 1, 2]).contiguous().shape)
             img_ae_loss, _, _ = img_loss(batch['img_rgb'], torch.permute(torch.stack(img_out)[0],[0, 3, 1, 2]).contiguous()
                         , 'l2_sq')
-            # print('MASK CHECK : ',batch['img_mask'].shape,torch.unsqueeze(torch.stack(mask_out)[0],1).shape)
-            mask_ae_loss, mask_fwd, mask_bwd = img_loss(batch['img_mask'], torch.unsqueeze(torch.stack(mask_out)[0],1),
-                    'bce', affinity_loss=False)
+            # print('MASK CHECK : ',torch.squeeze(batch['img_mask'],1).shape,torch.stack(mask_out)[0].shape)
+            mask_ae_loss, mask_fwd, mask_bwd = img_loss(torch.squeeze(batch['img_mask'],1), torch.stack(mask_out)[0],
+                    'bce', affinity_loss=True)
+            # print('Mask Loss Check ')
 
             # Pose Loss
             pose_loss_pose = pose_loss(pose_ip, torch.stack(pose_out[2:], axis=1), 'l1')
 
             # 3D Consistency Loss
             consist_3d_loss = 0.
-            for idx in range(config['n_proj']):
+            # for idx in range(config['n_proj']):
                 # if args._3d_loss_type == 'adj_model':
                 #     consist_3d_loss += get_3d_loss(pcl_out[idx], pcl_out[idx+1], 'chamfer')
                 # elif args._3d_loss_type == 'init_model':
-                consist_3d_loss += chamfer_distance(pcl_out[idx], pcl_out[0])
+                # consist_3d_loss += chamfer_distance(pcl_out[idx], pcl_out[0])[0]
 
             # consist_3d_loss = 0
             ##TODO

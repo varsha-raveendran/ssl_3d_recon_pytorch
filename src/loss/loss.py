@@ -77,7 +77,7 @@ class ImageLoss(nn.Module):
             min_dist = torch.mean(torch.amin(dist_masked,(3,4)))
             min_dist_inv = torch.mean(torch.amin(dist_masked_inv,(3,4)))
 
-        return loss,min_dist,min_dist_inv
+        return loss/(64*64),min_dist,min_dist_inv
 
 class GCCLoss(nn.Module):
     
