@@ -46,7 +46,7 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
             'lr': config['learning_rate_pose_net']
         }
     ])
-    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[800], gamma=0.1, verbose=True)
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[4000], gamma=0.1, verbose=True)
     ## Setting GPU
     recon_net.to(device)
     pose_net.to(device)
@@ -134,6 +134,8 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
 
             temp_gray_img = torchvision.transforms.Grayscale()(torch.permute(temp_img,[2,0,1]))
             temp_gray_img = torch.permute(temp_gray_img,[1,2,0])
+
+            temp_gt_mask = torch.clone(batch["img_mask"][0][0])
             
             # print(torch.squeeze(torch.clone(pcl_out[0]),0).T.shape)
             temp_pcl_xyz = torch.permute(torch.squeeze(torch.clone(pcl_out[0]),0).T, [2,0,1])[0].cpu().detach().numpy()
@@ -144,7 +146,8 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
             images = wandb.Image((temp_gray_img.cpu().detach().numpy()*255).astype(np.uint8),
                                 caption="Projected Image")
             masks = wandb.Image((temp_mask.cpu().detach().numpy()*255).astype(np.uint8), caption="Projected Mask")
-            log_list = [images,masks]
+            gt_mask = wandb.Image((temp_gt_mask.cpu().detach().numpy()*255).astype(np.uint8), caption="Ground Truth Mask")
+            log_list = [images,masks, gt_mask]
             wandb.log({"image": log_list})
             print(temp_pcl_xyz.shape)
             wandb.log({"point_cloud_1" : [wandb.Object3D(temp_pcl_xyz),wandb.Object3D(temp_pcl_rgb)]})
@@ -241,7 +244,7 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
 
 def main(config):
 
-    trainset = ShapeNet('train' if not config['is_overfit'] else 'overfit', config['category'])
+    trainset = ShapeNet('train' if not config['is_overfit'] else 'overfit_10', config['category'])
     trainloader = torch.utils.data.DataLoader(trainset, batch_size=config['batch_size'], shuffle=True)
 
     valset = ShapeNet('val' if not config['is_overfit'] else 'overfit', config['category'])
