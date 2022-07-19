@@ -54,7 +54,7 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
     recon_net.train()
     pose_net.train()
 
-    best_loss = 1e+10
+    best_loss = -1*1e+10
 
     train_loss_running = 0.
     num_epochs = config['max_epochs']
@@ -63,7 +63,7 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
       num_epochs = 200
 
     for epoch in range(num_epochs):
-        train_loss_running = 0 
+        train_loss_running = []
         print('**********************************************')
         print('Epoch : ', epoch)
         for i, batch in enumerate(trainloader):
@@ -237,11 +237,11 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
             # print('recon_loss : ',recon_loss.item())
             # print('pose_loss : ',pose_loss_val.item())
 
-            train_loss_running += total_loss.item()
+            train_loss_running.append(total_loss.item())
 
             ## VALIDATION
         if(not config['use_pretrained']):
-          if(num_epochs ==0 or (train_loss_running/ batch['img_rgb'].shape[0])<best_loss):
+          if(num_epochs ==0 or (sum(train_loss_running)/ len(train_loss_running))>best_loss):
             print('Saving new model!')
             best_loss = total_loss.item()
             torch.save(recon_net.state_dict(), f'src/runs/{config["experiment_name"]}/recon_model_best.ckpt')
