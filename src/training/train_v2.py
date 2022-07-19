@@ -46,7 +46,11 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
             'lr': config['learning_rate_pose_net']
         }
     ])
+<<<<<<< HEAD
     scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[4000], gamma=0.1, verbose=False)
+=======
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[4000], gamma=0.1, verbose=True)
+>>>>>>> 9b911c99df015e56ff1eeb37811467337d204d05
     ## Setting GPU
     recon_net.to(device)
     pose_net.to(device)
@@ -54,6 +58,7 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
     recon_net.train()
     pose_net.train()
 
+<<<<<<< HEAD
     best_loss = 1e+10
 
     train_loss_running = 0.
@@ -66,6 +71,16 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
         train_loss_running = 0 
         print('**********************************************')
         print('Epoch : ', epoch)
+=======
+    best_accuracy = 0.
+
+    train_loss_running = 0.
+
+    for epoch in range(config['max_epochs']):
+        train_loss_running = 0 
+        print('**********************************************')
+        print(epoch)
+>>>>>>> 9b911c99df015e56ff1eeb37811467337d204d05
         for i, batch in enumerate(trainloader):
             
             
@@ -73,7 +88,11 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
             ShapeNet.move_batch_to_device(batch, device)
             optimizer.zero_grad()
 
+<<<<<<< HEAD
             batch['img_mask'] = 1 - torchvision.transforms.Normalize(batch['img_mask'].mean(), batch['img_mask'].std())(batch['img_mask'])
+=======
+            batch['img_mask'] = torchvision.transforms.Normalize(batch['img_mask'].mean(), batch['img_mask'].std())(batch['img_mask'])
+>>>>>>> 9b911c99df015e56ff1eeb37811467337d204d05
             # pcl_out = pose_out = img_out = pcl_rgb_out = []
             pcl_out_rot = []
             pcl_out_persp = []
@@ -123,7 +142,11 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
                     64, 64,1., 100, 'rgb',config["device"])
                 # print('Proje img out : ',temp_img_out[0].shape)
                 img_out.append(temp_img_out[0])
+<<<<<<< HEAD
                 mask_out.append(get_proj_mask(pcl_out_persp, 64, 64,
+=======
+                mask_out.append(1-get_proj_mask(pcl_out_persp, 64, 64,
+>>>>>>> 9b911c99df015e56ff1eeb37811467337d204d05
                     1024, 0.4,config["device"])) ### Invert mask and image(?)
             # print("UM",img_out[0][0].shape)
 
@@ -153,7 +176,11 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
             gt_mask = wandb.Image((temp_gt_mask.cpu().detach().numpy()*255).astype(np.uint8), caption="Ground Truth Mask")
             log_list = [images,masks, gt_mask]
             wandb.log({"image": log_list})
+<<<<<<< HEAD
             # print(temp_pcl_xyz.shape)
+=======
+            print(temp_pcl_xyz.shape)
+>>>>>>> 9b911c99df015e56ff1eeb37811467337d204d05
             wandb.log({"point_cloud_1" : [wandb.Object3D(temp_pcl_xyz),wandb.Object3D(temp_pcl_rgb)]})
 
 
@@ -180,9 +207,15 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
             # print('IMAGE LOSS : ',torch.permute(torch.stack(img_out)[0],[0, 3, 1, 2]).contiguous().shape)
             img_ae_loss, _, _ = img_loss(batch['img_rgb'], torch.permute(torch.stack(img_out)[0],[0, 3, 1, 2]).contiguous()
                         , 'l2_sq')
+<<<<<<< HEAD
             # print('MASK CHECK : ',batch['img_mask'].shape,torch.stack(mask_out)[0].shape)
             mask_ae_loss, mask_fwd, mask_bwd = img_loss(torch.squeeze(batch['img_mask'],1), torch.stack(mask_out)[0],
                     'bce', affinity_loss=True)
+=======
+            print('MASK CHECK : ',batch['img_mask'].shape,torch.stack(mask_out)[0].shape)
+            mask_ae_loss, mask_fwd, mask_bwd = img_loss(torch.squeeze(batch['img_mask'],1), torch.stack(mask_out)[0],
+                    'bce', affinity_loss=False)
+>>>>>>> 9b911c99df015e56ff1eeb37811467337d204d05
             # print('Mask Loss Check ')
 
             # Pose Loss
@@ -267,6 +300,7 @@ def main(config):
     
     # device = 
     # declare device
+<<<<<<< HEAD
     device = torch.device(config['device'])  ## CHANGE TO CUDA 
 
     if(config['use_pretrained']):
@@ -279,6 +313,11 @@ def main(config):
     else: 
       recon_net = ReconstructionNet()
       pose_net = PoseNet() ## Need to merge
+=======
+    device = torch.device(config['device'])  ## CHANGE TO CUDA  
+    recon_net = ReconstructionNet()
+    pose_net = PoseNet() ## Need to merge
+>>>>>>> 9b911c99df015e56ff1eeb37811467337d204d05
 
 
     train(recon_net,pose_net,device,config,trainloader,valloader)
