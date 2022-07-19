@@ -262,7 +262,7 @@ def main(config):
     trainset = ShapeNet('train' if not config['is_overfit'] else 'overfit_10', config['category'])
     trainloader = torch.utils.data.DataLoader(trainset, batch_size=config['batch_size'], shuffle=True)
 
-    valset = ShapeNet('val' if not config['is_overfit'] else 'overfit', config['category'])
+    valset = ShapeNet('val' if not config['is_overfit'] else 'overfit_10', config['category'])
     valloader = torch.utils.data.DataLoader(valset, batch_size=config['batch_size'], shuffle=False)
     
     # device = 

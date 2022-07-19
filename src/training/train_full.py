@@ -3,7 +3,7 @@ import numpy as np
 import torch
 from pathlib import Path
 import torchvision
-# from pytorch3d.loss import chamfer_distance
+from pytorch3d.loss import chamfer_distance
 
 from src.data.shapenet import ShapeNet
 from src.network_architecture.recon_model import ReconstructionNet
@@ -57,11 +57,15 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
     best_accuracy = 0.
 
     train_loss_running = 0.
+    num_epochs = config['max_epochs']
+    if(config['use_pretrained']):
+      print('Using Pre Trained Model!')
+      num_epochs = 200
 
-    for epoch in range(config['max_epochs']):
-        train_loss_running = 0 
+    for epoch in range(num_epochs):
+        train_loss_running = [] 
         print('**********************************************')
-        print(epoch)
+        print('Epoch : ', epoch)
         for i, batch in enumerate(trainloader):
             
             
@@ -69,7 +73,7 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
             ShapeNet.move_batch_to_device(batch, device)
             optimizer.zero_grad()
 
-            batch['img_mask'] = torchvision.transforms.Normalize(batch['img_mask'][0].mean(), batch['img_mask'][0].std())(batch['img_mask'][0])
+            batch['img_mask'] = 1 - torchvision.transforms.Normalize(batch['img_mask'][0].mean(), batch['img_mask'][0].std())(batch['img_mask'][0])
             # pcl_out = pose_out = img_out = pcl_rgb_out = []
             pcl_out_rot = []
             pcl_out_persp = []
@@ -119,7 +123,7 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
                     64, 64,1., 100, 'rgb',config["device"])
                 # print('Proje img out : ',temp_img_out[0].shape)
                 img_out.append(temp_img_out[0])
-                mask_out.append(1-get_proj_mask(pcl_out_persp, 64, 64,
+                mask_out.append(get_proj_mask(pcl_out_persp, 64, 64,
                     1024, 0.4,config["device"])) ### Invert mask and image(?)
             # print("UM",img_out[0][0].shape)
 
@@ -174,7 +178,7 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
                         , 'l2_sq')
             # print('MASK CHECK : ',torch.squeeze(batch['img_mask'],1).shape,torch.stack(mask_out)[0].shape)
             mask_ae_loss, mask_fwd, mask_bwd = img_loss(torch.squeeze(batch['img_mask'],1), torch.stack(mask_out)[0],
-                    'bce_prob', affinity_loss=True)
+                    'bce', affinity_loss=True)
             # print('Mask Loss Check ')
 
             # Pose Loss
@@ -182,11 +186,11 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
 
             # 3D Consistency Loss
             consist_3d_loss = 0.
-            # for idx in range(config['n_proj']):
+            for idx in range(config['n_proj']):
                 # if args._3d_loss_type == 'adj_model':
                 #     consist_3d_loss += get_3d_loss(pcl_out[idx], pcl_out[idx+1], 'chamfer')
                 # elif args._3d_loss_type == 'init_model':
-                # consist_3d_loss += chamfer_distance(pcl_out[idx], pcl_out[0])[0]
+                consist_3d_loss += chamfer_distance(pcl_out[idx], pcl_out[0])[0]
 
             # consist_3d_loss = 0
             ##TODO
@@ -229,9 +233,19 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
             # print('recon_loss : ',recon_loss.item())
             # print('pose_loss : ',pose_loss_val.item())
 
+            train_loss_running.append(total_loss.item())
+
             ## VALIDATION
-        torch.save(recon_net.state_dict(), f'src/runs/{config["experiment_name"]}/recon_model_best.ckpt')
-        torch.save(pose_net.state_dict(), f'src/runs/{config["experiment_name"]}/pose_model_best.ckpt')
+        if(not config['use_pretrained']):
+          if(epoch ==0 or (sum(train_loss_running)/ len(train_loss_running))<best_loss):
+            print('Saving new model!')
+            best_loss = sum(train_loss_running)/ len(train_loss_running)
+            torch.save(recon_net.state_dict(), f'src/runs/{config["experiment_name"]}/recon_model_best.ckpt')
+            torch.save(pose_net.state_dict(), f'src/runs/{config["experiment_name"]}/pose_model_best.ckpt')
+
+            # Saving to GDrive
+            torch.save(recon_net.state_dict(), f'../drive/MyDrive/recon_model_best.ckpt')
+            torch.save(pose_net.state_dict(), f'../drive/MyDrive/pose_model_best.ckpt')
 
 
             
@@ -248,9 +262,18 @@ def main(config):
     
     # device = 
     # declare device
-    device = torch.device(config['device'])  ## CHANGE TO CUDA  
-    recon_net = ReconstructionNet()
-    pose_net = PoseNet() ## Need to merge
+    device = torch.device(config['device'])  ## CHANGE TO CUDA 
+
+    if(config['use_pretrained']):
+      recon_net = ReconstructionNet()
+      pose_net = PoseNet() ## Need to merge
+      ckpt_recon = f'src/runs/{config["experiment_name"]}/recon_model_best.ckpt'
+      recon_net.load_state_dict(torch.load(ckpt_recon, map_location='cpu'))
+      ckpt_pose = f'src/runs/{config["experiment_name"]}/pose_model_best.ckpt'
+      pose_net.load_state_dict(torch.load(ckpt_pose, map_location='cpu'))
+    else: 
+      recon_net = ReconstructionNet()
+      pose_net = PoseNet() ## Need to merge
 
 
     train(recon_net,pose_net,device,config,trainloader,valloader)
