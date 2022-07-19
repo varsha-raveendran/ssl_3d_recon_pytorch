@@ -46,7 +46,7 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
             'lr': config['learning_rate_pose_net']
         }
     ])
-    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[4000], gamma=0.1, verbose=False)
+    # scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[4000], gamma=0.1, verbose=False)
     ## Setting GPU
     recon_net.to(device)
     pose_net.to(device)
@@ -228,7 +228,7 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
             total_loss.backward(retain_graph=True)
 
             optimizer.step()
-            scheduler.step()
+            # scheduler.step()
             print('Iteration : ',i)
             print('Loss : ',total_loss.item())
             wandb.log({'Total Loss': total_loss.item()})
@@ -241,9 +241,9 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
 
             ## VALIDATION
         if(not config['use_pretrained']):
-          if(num_epochs ==0 or (sum(train_loss_running)/ len(train_loss_running))>best_loss):
+          if(epoch ==0 or (sum(train_loss_running)/ len(train_loss_running))<best_loss):
             print('Saving new model!')
-            best_loss = total_loss.item()
+            best_loss = sum(train_loss_running)/ len(train_loss_running)
             torch.save(recon_net.state_dict(), f'src/runs/{config["experiment_name"]}/recon_model_best.ckpt')
             torch.save(pose_net.state_dict(), f'src/runs/{config["experiment_name"]}/pose_model_best.ckpt')
 
