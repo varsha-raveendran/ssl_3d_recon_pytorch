@@ -142,8 +142,12 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
             temp_gt_mask = torch.clone(batch["img_mask"][0][0])
             
             # print(torch.squeeze(torch.clone(pcl_out[0]),0).T.shape)
-            temp_pcl_xyz = torch.permute(torch.squeeze(torch.clone(pcl_out[0]),0).T, [2,0,1])[0].cpu().detach().numpy()
-            temp_pcl_rgb = torch.permute(torch.squeeze(torch.clone(pcl_rgb_out[0]),0).T, [2,0,1])[0].cpu().detach().numpy()
+            # temp_pcl_xyz = torch.permute(torch.squeeze(torch.clone(pcl_out[0]),0).T, [2,0,1])[0].cpu().detach().numpy()
+            # temp_pcl_rgb = torch.permute(torch.squeeze(torch.clone(pcl_rgb_out[0]),0).T, [2,0,1])[0].cpu().detach().numpy()
+            print(torch.clone(pcl_out[0]).shape)
+            print(torch.clone(pcl_rgb_out[0]).shape)
+            temp_pcl_rgb = torch.reshape(torch.clone(torch.squeeze(pcl_rgb_out[0][0])), ( 1024, 3)).cpu().detach().numpy()
+            temp_pcl_xyz =  torch.reshape(torch.clone(torch.squeeze(pcl_out[0][0])), ( 1024, 3)).cpu().detach().numpy()
             
     #         point_cloud = wandb.Object3D({'type':'lidar/beta',
     #                                      'points':temp_pcl})
@@ -172,7 +176,8 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
 
             temp_pcl = torch.permute(torch.squeeze(torch.clone(pcl_out[1]),0).T, [2,0,1])[0].cpu().detach().numpy()
 #         temp_pcl2 = torch.squeeze(torch.clone(pcl_out[1]),0).T.cpu().detach().numpy()
-            gt_pcl = torch.permute(torch.squeeze(torch.clone(batch['pcl']),0).T, [2,0,1])[0].cpu().detach().numpy()
+            #gt_pcl = torch.permute(torch.squeeze(torch.clone(batch['pcl']),0).T, [2,0,1])[0].cpu().detach().numpy()
+            gt_pcl = torch.reshape(torch.clone(torch.squeeze(batch['pcl'][0])), ( 1024, 3)).cpu().detach().numpy()
             wandb.log({"point_cloud_2" : [wandb.Object3D(temp_pcl),wandb.Object3D(gt_pcl)]})
 
             # Define Losses
@@ -259,10 +264,10 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
 
 def main(config):
 
-    trainset = ShapeNet('train' if not config['is_overfit'] else 'overfit_10', config['category'])
+    trainset = ShapeNet('train' if not config['is_overfit'] else 'overfit_10', config['category'], config['n_proj'])
     trainloader = torch.utils.data.DataLoader(trainset, batch_size=config['batch_size'], shuffle=True)
 
-    valset = ShapeNet('val' if not config['is_overfit'] else 'overfit_10', config['category'])
+    valset = ShapeNet('val' if not config['is_overfit'] else 'overfit_10', config['category'], config['n_proj'])
     valloader = torch.utils.data.DataLoader(valset, batch_size=config['batch_size'], shuffle=False)
     
     # device = 
