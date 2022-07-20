@@ -254,10 +254,10 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
 
 def main(config):
 
-    trainset = ShapeNet('train' if not config['is_overfit'] else 'overfit', config['category'])
+    trainset = ShapeNet('train' if not config['is_overfit'] else 'overfit', config['category'], config['n_proj'])
     trainloader = torch.utils.data.DataLoader(trainset, batch_size=config['batch_size'], shuffle=True)
 
-    valset = ShapeNet('val' if not config['is_overfit'] else 'overfit', config['category'])
+    valset = ShapeNet('val' if not config['is_overfit'] else 'overfit', config['category'], config['n_proj'])
     valloader = torch.utils.data.DataLoader(valset, batch_size=config['batch_size'], shuffle=False)
     
     # device = 

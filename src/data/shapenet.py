@@ -17,10 +17,11 @@ class ShapeNet(torch.utils.data.Dataset):
         class_name_mapping = json.load(json_file)
         print(class_name_mapping)
 
-    def __init__(self, split, category):
+    def __init__(self, split, category, n_proj):
         super().__init__()
         assert split in ['train', 'val', 'overfit', 'overfit_10']
         self.category = category
+        self.n_proj = n_proj
         self.items = np.load('src/data/splits/shapenet/images_list_%s_%s.npy'%(category, split), allow_pickle=True)
         # print(self.items.shape)
         self.image_ids = [item[0].split('_')[1] for item in self.items]
@@ -57,13 +58,11 @@ class ShapeNet(torch.utils.data.Dataset):
         pcl = np.load(self.pcl_path / Path(self.category) / filename / 'pointcloud_1024.npy').astype(np.float32)
         pcl = torch.from_numpy(pcl)
 
-        # Get K poses, TODO: K should be passed in the __init__ later on
-        K = 2
-        # Read K projections for each model. Randomly choose K out of 10 existing projections
+        # Read N_PROJ projections for each model. Randomly choose N_PROJ out of 10 existing projections
         with open(join(self.rendered_path , f'{self.category}/{filename}', 'view.txt'), 'r') as fp:
             angles = [item.split('\n')[0] for item in fp.readlines()]
         poses = []
-        for k in range(K):
+        for k in range(self.n_proj - 1):
             index = np.random.randint(0,10) 
             angle = angles[int(index)]
             angle = [float(item)*(np.pi/180.) for item in angle.split(' ')[:2]]    
