@@ -200,13 +200,13 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
             ##TODO
             # Symmetry loss - assumes symmetry of point cloud about z-axis
             # # Helps obtaining output aligned along z-axis
-            # pcl_y_pos = (pcl_out[0][:,:,1:2]>0).type(torch.FloatTensor)
-            # pcl_y_neg = tf.to_float(pcl_out[0][:,:,1:2]<0)
-            # pcl_pos = pcl_y_pos*tf.concat([pcl_out[0][:,:,:1], tf.abs(pcl_out[0][:,:,1:2]),
-            #         pcl_out[0][:,:,2:3]], -1)
-            # pcl_neg = pcl_y_neg*tf.concat([pcl_out[0][:,:,:1], tf.abs(pcl_out[0][:,:,1:2]),
-            #         pcl_out[0][:,:,2:3]], -1)
-            # symm_loss = get_chamfer_dist(pcl_pos, pcl_neg)[-1]
+            pcl_y_pos = (pcl_out[0][:,:,1:2]>0).type(torch.FloatTensor).to(device)
+            pcl_y_neg = (pcl_out[0][:,:,1:2]<0).type(torch.FloatTensor).to(device)
+            pcl_pos = pcl_y_pos*torch.concat([pcl_out[0][:,:,:1], torch.abs(pcl_out[0][:,:,1:2]),
+                    pcl_out[0][:,:,2:3]], -1)
+            pcl_neg = pcl_y_neg*torch.concat([pcl_out[0][:,:,:1], torch.abs(pcl_out[0][:,:,1:2]),
+                    pcl_out[0][:,:,2:3]], -1)
+            symm_loss = chamfer_distance(pcl_pos, pcl_neg)[0]
 
             # Total Loss
             # loss = (config['lambda_ae']*img_ae_loss) + (config['lambda_3d']*consist_3d_loss) +\
@@ -214,8 +214,8 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
             recon_loss = (config['lambda_ae']*img_ae_loss) + (config['lambda_3d']*consist_3d_loss)\
                             + (config['lambda_ae_mask']*mask_ae_loss) +\
                             (config['lambda_mask_fwd']*mask_fwd) + (config['lambda_mask_bwd']*mask_bwd)
-            # if args.symmetry_loss:
-            #     recon_loss += (config['lambda_symm']*symm_loss)
+            if config["use_symmetry_loss"]:
+                recon_loss += (config['lambda_symm']*symm_loss)
             pose_loss_val = (config['lambda_ae_pose']*img_ae_loss) + (config['lambda_pose']*pose_loss_pose)\
                             + (config['lambda_mask_pose']*mask_ae_loss)
 
