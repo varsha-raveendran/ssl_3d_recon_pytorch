@@ -182,7 +182,11 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
             # print('Mask Loss Check ')
 
             # Pose Loss
-            pose_loss_pose = pose_loss(pose_ip, torch.stack(pose_out[2:], axis=1), 'l1')
+            pose_all = torch.permute(pose_all,[1,0,2])
+            pose_loss_pose = 0
+            for idx in range(config['n_proj']):
+              pose_loss_pose += pose_loss(pose_all[idx], torch.stack(pose_out)[idx+1], 'l1')
+            pose_loss_pose /= config['n_proj']
 
             # 3D Consistency Loss
             consist_3d_loss = 0.
@@ -190,7 +194,7 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
                 # if args._3d_loss_type == 'adj_model':
                 #     consist_3d_loss += get_3d_loss(pcl_out[idx], pcl_out[idx+1], 'chamfer')
                 # elif args._3d_loss_type == 'init_model':
-                consist_3d_loss += chamfer_distance(pcl_out[idx], pcl_out[0])[0]
+                consist_3d_loss += chamfer_distance(torch.permute(pcl_out[idx],[0,2,1]),torch.permute(pcl_out[0],[0,2,1]))[0]
 
             # consist_3d_loss = 0
             ##TODO
