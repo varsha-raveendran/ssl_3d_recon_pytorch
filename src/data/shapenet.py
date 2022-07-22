@@ -79,7 +79,7 @@ class ShapeNet(torch.utils.data.Dataset):
             'name': filename,
             'img_rgb' : img_tensor.float() ,
             'img_mask' : mask_tensor.float() ,
-            'pcl' : torch.reshape(pcl, ( 3, 1024)),
+            'pcl' : torch.permute(pcl, ( 1, 0)),
             'gt_pose' : gt_pose,
             'random_pose': random_pose 
         }
