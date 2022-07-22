@@ -236,7 +236,8 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
 
         log_metrics = pd.DataFrame({'train_total_loss':log_total_loss,
                                     'train_pose_loss':log_pose_loss,
-                                    'train_recon_loss':log_recon_loss
+                                    'train_recon_loss':log_recon_loss,
+                                    'train_symm_loss': log_symm_loss
                                     })
         log_metrics.to_csv(f'src/logs/{config["experiment_name"]}/training_metrics.csv')
 
