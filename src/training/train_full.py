@@ -1,5 +1,6 @@
 from turtle import pos
 import numpy as np
+import pandas as pd
 import torch
 from pathlib import Path
 import torchvision
@@ -62,8 +63,17 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
       print('Using Pre Trained Model!')
       num_epochs = 200
 
+    ## Logging metrics for training epochs
+    log_total_loss = []
+    log_pose_loss = []
+    log_recon_loss = []
+    log_symm_loss = []
+
     for epoch in range(num_epochs):
-        train_loss_running = [] 
+        train_loss_running = []
+        pose_loss_running = []
+        recon_loss_running = [] 
+        symm_loss_running = []
         print('**********************************************')
         print('Epoch : ', epoch)
         for i, batch in enumerate(trainloader):
@@ -100,20 +110,6 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
 
             ## USE THE PORJECTION MODULE TO GET PROJECTIONS FROM PC1 AND POSES
             for idx in range(config['n_proj']):
-                # pcl_out_rot = world2cam(pcl_xyz, pose_out[:, 0], pose_out[:, 1], 2., 2., 1,device="cuda")
-                # pcl_out_pers = perspective_transform(pcl_out_rot, 1, device="cuda")
-                # img_out = get_proj_rgb(pcl_out_pers, pcl, 1024, 60, 60, device="cuda")
-                # mask_out = get_proj_mask(pcl_out_pers, 60, 60, 1024, 0.4, device="cuda")
-                # print(idx)
-                # pcl_out_rot.append(world2cam(pcl_out[0], pose_all[:, idx, 0],
-                #     pose_all[:,idx,1], 2., 2., len(batch),config["device"]))
-                # pcl_out_persp.append(perspective_transform(pcl_out_rot[idx],
-                #     len(batch),config["device"]))
-                # img_out.append(get_proj_rgb(pcl_out_persp[idx], pcl_rgb_out[0], 1024,
-                #     224, 224,1., 100, 'rgb',config["device"])[0])
-                # mask_out.append(get_proj_mask(pcl_out_persp[idx], 224, 224,
-                #     1024, 0.4,config["device"]))
-
                 # print("PointClouds:", pcl_out[0].shape)
                 pcl_out_rot = world2cam(pcl_out[0], pose_all[:, idx, 0],
                     pose_all[:,idx,1], 2., 2., batch['img_rgb'].shape[0],config["device"])
@@ -125,14 +121,7 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
                 img_out.append(temp_img_out[0])
                 mask_out.append(get_proj_mask(pcl_out_persp, 64, 64,
                     1024, 0.4,config["device"])) ### Invert mask and image(?)
-            # print("UM",img_out[0][0].shape)
 
-            # temp_img = torch.clone(img_out[0][0])
-            # temp_mask = torch.clone(mask_out[0])
-            # images = wandb.Image((temp_img.cpu().detach().numpy()*255).astype(np.uint8), caption="Projected Image")
-            # masks = wandb.Image((temp_mask.cpu().detach().numpy()*255).astype(np.uint8), caption="Projected Mask")
-            # log_list = [images, masks]
-            # wandb.log({"image": log_list})
             temp_img = torch.clone(img_out[0][0])
             temp_mask = torch.clone(mask_out[0])
             temp_gray_img = torchvision.transforms.Grayscale()(torch.permute(temp_img,[2,0,1]))
@@ -156,10 +145,6 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
             # print(img_out[1][0].shape)
             # Reconstruct the point cloud from and predict the pose of projected images
             for idx in range(config['n_proj']):
-                # print(idx)
-                # print('Pojected images : ', img_out[idx].shape)
-                # print(torch.permute(img_out[idx][0],[0, 3, 1, 2]).shape)
-                # temp_img = torch.permute(img_out[0][idx],[0, 3, 1, 2]).contiguous()
                 pcl_xyz, pcl_rgb = recon_net(torch.permute(img_out[idx],[0, 3, 1, 2]).contiguous())
                 pcl_out.append(pcl_xyz)
                 pcl_rgb_out.append(pcl_rgb)
@@ -191,9 +176,6 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
             # 3D Consistency Loss
             consist_3d_loss = 0.
             for idx in range(config['n_proj']):
-                # if args._3d_loss_type == 'adj_model':
-                #     consist_3d_loss += get_3d_loss(pcl_out[idx], pcl_out[idx+1], 'chamfer')
-                # elif args._3d_loss_type == 'init_model':
                 consist_3d_loss += chamfer_distance(torch.permute(pcl_out[idx],[0,2,1]),torch.permute(pcl_out[0],[0,2,1]))[0]
 
             # consist_3d_loss = 0
@@ -206,7 +188,7 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
                     pcl_out[0][:,:,2:3]], -1)
             pcl_neg = pcl_y_neg*torch.concat([pcl_out[0][:,:,:1], torch.abs(pcl_out[0][:,:,1:2]),
                     pcl_out[0][:,:,2:3]], -1)
-            symm_loss = chamfer_distance(pcl_pos, pcl_neg)[0]
+            symm_loss = chamfer_distance(torch.permute(pcl_pos,[0,2,1]), torch.permute(pcl_neg,[0,2,1]))[0]
 
             # Total Loss
             # loss = (config['lambda_ae']*img_ae_loss) + (config['lambda_3d']*consist_3d_loss) +\
@@ -238,8 +220,26 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
             # print('pose_loss : ',pose_loss_val.item())
 
             train_loss_running.append(total_loss.item())
+            pose_loss_running.append(pose_loss_val.item())
+            recon_loss_running.append(recon_loss.item())
+            if config["use_symmetry_loss"]:
+                symm_loss_running.append(symm_loss.item())
 
             ## VALIDATION
+        
+        ## Logging metrics for each epoch
+        log_total_loss.append(sum(train_loss_running)/ len(train_loss_running))
+        log_pose_loss.append(sum(pose_loss_running)/ len(pose_loss_running))
+        log_recon_loss.append(sum(recon_loss_running)/ len(recon_loss_running))
+        if config["use_symmetry_loss"]:
+                log_symm_loss.append(sum(symm_loss_running)/ len(symm_loss_running))
+
+        log_metrics = pd.DataFrame({'train_total_loss':log_total_loss,
+                                    'train_pose_loss':log_pose_loss,
+                                    'train_recon_loss':log_recon_loss
+                                    })
+        log_metrics.to_csv(f'src/logs/{config["experiment_name"]}/training_metrics.csv')
+
         if(not config['use_pretrained']):
           if(epoch ==0 or (sum(train_loss_running)/ len(train_loss_running))<best_loss):
             print('Saving new model!')
