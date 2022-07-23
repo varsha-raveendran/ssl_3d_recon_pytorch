@@ -244,8 +244,9 @@ def train(recon_net,pose_net,device,config,trainloader,valloader, initial_pcl = 
                 symm_loss_running.append(symm_loss.item())
 
         ## VALIDATION
-        val_loss,val_pose_loss,val_recon_loss,val_symm_loss = 
-                    validate(recon_net,pose_net,device,config,valloader) 
+        if(not config['iso']):
+            val_loss,val_pose_loss,val_recon_loss,val_symm_loss = \
+                        validate(recon_net,pose_net,device,config,valloader) 
         
 
 
@@ -262,22 +263,25 @@ def train(recon_net,pose_net,device,config,trainloader,valloader, initial_pcl = 
                                         'train_recon_loss':log_recon_loss,
                                         'train_symm_loss': log_symm_loss
                                         })
-            val_log_metrics = pd.DataFrame({'val_total_loss':val_loss,
-                                        'val_pose_loss':val_pose_loss,
-                                        'val_recon_loss':val_recon_loss,
-                                        'val_symm_loss': val_symm_loss
-                                        })
+            if(not config['iso']):
+                val_log_metrics = pd.DataFrame({'val_total_loss':val_loss,
+                                            'val_pose_loss':val_pose_loss,
+                                            'val_recon_loss':val_recon_loss,
+                                            'val_symm_loss': val_symm_loss
+                                            })
         else:
             log_metrics = pd.DataFrame({'train_total_loss':log_total_loss,
                                         'train_pose_loss':log_pose_loss,
                                         'train_recon_loss':log_recon_loss
                                         })
-            val_log_metrics = pd.DataFrame({'val_total_loss':val_loss,
-                                        'val_pose_loss':val_pose_loss,
-                                        'val_recon_loss':val_recon_loss
-                                        })
+            if(not config['iso']):
+                val_log_metrics = pd.DataFrame({'val_total_loss':val_loss,
+                                            'val_pose_loss':val_pose_loss,
+                                            'val_recon_loss':val_recon_loss
+                                            })
         log_metrics.to_csv(f'src/logs/{config["experiment_name"]}/training_metrics.csv')
-        val_log_metrics.to_csv(f'src/logs/{config["experiment_name"]}/validation_metrics.csv')
+        if(not config['iso']):
+            val_log_metrics.to_csv(f'src/logs/{config["experiment_name"]}/validation_metrics.csv')
 
         if(not config['iso']):
           if(epoch ==0 or (sum(train_loss_running)/ len(train_loss_running))<best_loss):
