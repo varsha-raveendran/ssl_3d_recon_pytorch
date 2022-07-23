@@ -15,7 +15,10 @@ from src.loss.loss import ImageLoss,GCCLoss,PoseLoss
 import wandb
 
 
-def train(recon_net,pose_net,device,config,trainloader,valloader):
+def train(recon_net,pose_net,device,config,trainloader,valloader, initial_pcl = None):
+    # For inference stage optimisation
+    if initial_pcl != None:
+      initial_pcl = initial_pcl.to(device)
 
     wandb.init(project='v1',reinit=True)
     print("training model!")
@@ -60,7 +63,6 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
     num_epochs = config['max_epochs']
     if(config['use_pretrained']):
       print('Using Pre Trained Model!')
-      num_epochs = 200
     
     ## Logging metrics for training epochs
     log_total_loss = []
@@ -197,15 +199,26 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
             # Total Loss
             # loss = (config['lambda_ae']*img_ae_loss) + (config['lambda_3d']*consist_3d_loss) +\
             #         (config['lambda_pose']*pose_loss_pose)
+            total_loss = 0.
+            reg_loss = 0.
             recon_loss = (config['lambda_ae']*img_ae_loss) + (config['lambda_3d']*consist_3d_loss)\
-                            + (config['lambda_ae_mask']*mask_ae_loss) +\
-                            (config['lambda_mask_fwd']*mask_fwd) + (config['lambda_mask_bwd']*mask_bwd)
+                                + (config['lambda_ae_mask']*mask_ae_loss) +\
+                                (config['lambda_mask_fwd']*mask_fwd) + (config['lambda_mask_bwd']*mask_bwd)
             if config["use_symmetry_loss"]:
                 recon_loss += (config['lambda_symm']*symm_loss)
             pose_loss_val = (config['lambda_ae_pose']*img_ae_loss) + (config['lambda_pose']*pose_loss_pose)\
                             + (config['lambda_mask_pose']*mask_ae_loss)
-
-            total_loss = recon_loss + pose_loss_val
+            
+            if(not config['iso']):
+                total_loss = recon_loss + pose_loss_val
+            else:    
+                for idx in range(config['n_proj']):
+                  reg_loss += chamfer_distance(torch.permute(initial_pcl,[0,2,1]), torch.permute(pcl_out[idx],[0,2,1]))[0]
+                    
+                total_loss = (config['lambda_ae']*img_ae_loss) + (config['lambda_3d']*reg_loss)\
+                                + (config['lambda_ae_mask']*mask_ae_loss) +\
+                                (config['lambda_mask_fwd']*mask_fwd) + (config['lambda_mask_bwd']*mask_bwd) +\
+                                      (config['lambda_symm']*symm_loss)
 
             
             # loss.backward(retain_graph=True)
@@ -245,7 +258,7 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
                                     })
         log_metrics.to_csv(f'src/logs/{config["experiment_name"]}/training_metrics.csv')
 
-        if(not config['use_pretrained']):
+        if(not config['iso']):
           if(epoch ==0 or (sum(train_loss_running)/ len(train_loss_running))<best_loss):
             print('Saving new model!')
             best_loss = sum(train_loss_running)/ len(train_loss_running)
@@ -255,6 +268,18 @@ def train(recon_net,pose_net,device,config,trainloader,valloader):
             # Saving to GDrive
             torch.save(recon_net.state_dict(), f'../drive/MyDrive/recon_model_best.ckpt')
             torch.save(pose_net.state_dict(), f'../drive/MyDrive/pose_model_best.ckpt')
+
+        else:
+          if(epoch ==0 or (sum(train_loss_running)/ len(train_loss_running))<best_loss):
+            print('Saving new model!')
+            best_loss = sum(train_loss_running)/ len(train_loss_running)
+            torch.save(recon_net.state_dict(), f'src/runs/{config["experiment_name"]}/recon_model_inf.ckpt')
+            torch.save(pose_net.state_dict(), f'src/runs/{config["experiment_name"]}/pose_model_inf.ckpt')
+
+            # Saving to GDrive
+            torch.save(recon_net.state_dict(), f'../drive/MyDrive/recon_model_inf.ckpt')
+            torch.save(pose_net.state_dict(), f'../drive/MyDrive/pose_model_inf.ckpt')    
+
             
             
 
@@ -286,4 +311,13 @@ def main(config):
       pose_net = PoseNet() ## Need to merge
 
 
-    train(recon_net,pose_net,device,config,trainloader,valloader)
+    #Sets the value of initial prediction for ISO loss
+    if(config['iso']):
+      recon_net.to(device)
+      recon_net.eval()
+      for i, batch in enumerate(trainloader):
+        initial_pcl = recon_net(batch['img_rgb'].to(device))
+      initial_pcl = initial_pcl[0].detach().cpu().numpy()
+      train(recon_net,pose_net,device,config,trainloader,valloader, torch.from_numpy(initial_pcl))
+    else: 
+      train(recon_net,pose_net,device,config,trainloader,valloader)  
