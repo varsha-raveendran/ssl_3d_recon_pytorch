@@ -191,6 +191,11 @@ def validate(recon_net,pose_net,device,config,valloader):
             recon_loss_running.append(recon_loss.item())
             if config["use_symmetry_loss"]:
                 symm_loss_running.append(symm_loss.item())
-            
         
-        return (train_loss_running,pose_loss_running,recon_loss_running,symm_loss_running)
+        log_total_loss.append(sum(train_loss_running)/ len(train_loss_running))
+        log_pose_loss.append(sum(pose_loss_running)/ len(pose_loss_running))
+        log_recon_loss.append(sum(recon_loss_running)/ len(recon_loss_running))
+        if config["use_symmetry_loss"]:
+                log_symm_loss.append(sum(symm_loss_running)/ len(symm_loss_running))
+        
+        return (log_total_loss,log_pose_loss,log_recon_loss,log_symm_loss)

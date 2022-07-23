@@ -11,7 +11,7 @@ from src.network_architecture.recon_model import ReconstructionNet
 from src.network_architecture.pose_net import PoseNet
 from src.renderer.projection import World2Cam, PerspectiveTransform, RgbContProj, ContProj
 from src.loss.loss import ImageLoss,GCCLoss,PoseLoss
-
+from src.training.validation import *
 
 import wandb
 
@@ -243,8 +243,12 @@ def train(recon_net,pose_net,device,config,trainloader,valloader, initial_pcl = 
             if config["use_symmetry_loss"]:
                 symm_loss_running.append(symm_loss.item())
 
-            ## VALIDATION
+        ## VALIDATION
+        val_loss,val_pose_loss,val_recon_loss,val_symm_loss = 
+                    validate(recon_net,pose_net,device,config,valloader) 
         
+
+
         ## Logging metrics for each epoch
         log_total_loss.append(sum(train_loss_running)/ len(train_loss_running))
         log_pose_loss.append(sum(pose_loss_running)/ len(pose_loss_running))
@@ -258,12 +262,22 @@ def train(recon_net,pose_net,device,config,trainloader,valloader, initial_pcl = 
                                         'train_recon_loss':log_recon_loss,
                                         'train_symm_loss': log_symm_loss
                                         })
+            val_log_metrics = pd.DataFrame({'val_total_loss':val_loss,
+                                        'val_pose_loss':val_pose_loss,
+                                        'val_recon_loss':val_recon_loss,
+                                        'val_symm_loss': val_symm_loss
+                                        })
         else:
             log_metrics = pd.DataFrame({'train_total_loss':log_total_loss,
                                         'train_pose_loss':log_pose_loss,
                                         'train_recon_loss':log_recon_loss
                                         })
+            val_log_metrics = pd.DataFrame({'val_total_loss':val_loss,
+                                        'val_pose_loss':val_pose_loss,
+                                        'val_recon_loss':val_recon_loss
+                                        })
         log_metrics.to_csv(f'src/logs/{config["experiment_name"]}/training_metrics.csv')
+        val_log_metrics.to_csv(f'src/logs/{config["experiment_name"]}/validation_metrics.csv')
 
         if(not config['iso']):
           if(epoch ==0 or (sum(train_loss_running)/ len(train_loss_running))<best_loss):
