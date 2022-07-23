@@ -71,6 +71,11 @@ def train(recon_net,pose_net,device,config,trainloader,valloader, initial_pcl = 
     log_recon_loss = []
     log_symm_loss = []
 
+    val_log_total_loss = []
+    val_log_pose_loss = []
+    val_log_recon_loss = []
+    val_log_symm_loss = []
+
     
 
     for epoch in range(num_epochs):
@@ -240,6 +245,12 @@ def train(recon_net,pose_net,device,config,trainloader,valloader, initial_pcl = 
         if(not config['iso']):
             val_loss,val_pose_loss,val_recon_loss,val_symm_loss = \
                         validate(recon_net,pose_net,device,config,valloader)
+        
+            val_log_total_loss.append(val_loss[0])
+            val_log_pose_loss.append(val_pose_loss[0])
+            val_log_recon_loss.append(val_recon_loss[0])
+            if config["use_symmetry_loss"]:
+                    val_log_symm_loss.append(val_symm_loss[0])
 
         ## Logging metrics for each epoch
         log_total_loss.append(sum(train_loss_running)/ len(train_loss_running))
@@ -255,10 +266,10 @@ def train(recon_net,pose_net,device,config,trainloader,valloader, initial_pcl = 
                                         'train_symm_loss': log_symm_loss
                                         })
             if(not config['iso']):
-                val_log_metrics = pd.DataFrame({'val_total_loss':val_loss,
-                                            'val_pose_loss':val_pose_loss,
-                                            'val_recon_loss':val_recon_loss,
-                                            'val_symm_loss': val_symm_loss
+                val_log_metrics = pd.DataFrame({'val_total_loss':val_log_total_loss,
+                                            'val_pose_loss':val_log_pose_loss,
+                                            'val_recon_loss':val_log_recon_loss,
+                                            'val_symm_loss': val_log_symm_loss
                                             })
         else:
             log_metrics = pd.DataFrame({'train_total_loss':log_total_loss,
@@ -266,18 +277,18 @@ def train(recon_net,pose_net,device,config,trainloader,valloader, initial_pcl = 
                                         'train_recon_loss':log_recon_loss
                                         })
             if(not config['iso']):
-                val_log_metrics = pd.DataFrame({'val_total_loss':val_loss,
-                                            'val_pose_loss':val_pose_loss,
-                                            'val_recon_loss':val_recon_loss
+                val_log_metrics = pd.DataFrame({'val_total_loss':val_log_total_loss,
+                                            'val_pose_loss':val_log_pose_loss,
+                                            'val_recon_loss':val_log_recon_loss
                                             })
         log_metrics.to_csv(f'src/logs/{config["experiment_name"]}/training_metrics.csv')
         if(not config['iso']):
             val_log_metrics.to_csv(f'src/logs/{config["experiment_name"]}/validation_metrics.csv')
 
         if(not config['iso']):
-          if(epoch ==0 or (sum(train_loss_running)/ len(train_loss_running))<best_loss):
+          if(epoch ==0 or (val_loss[0])<best_loss):
             print('Saving new model!')
-            best_loss = sum(train_loss_running)/ len(train_loss_running)
+            best_loss = val_loss[0]
             torch.save(recon_net.state_dict(), f'src/runs/{config["experiment_name"]}/recon_model_best.ckpt')
             torch.save(pose_net.state_dict(), f'src/runs/{config["experiment_name"]}/pose_model_best.ckpt')
 

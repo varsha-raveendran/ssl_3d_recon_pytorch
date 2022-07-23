@@ -56,7 +56,7 @@ def validate(recon_net,pose_net,device,config,valloader):
             
             # move batch to device
             ShapeNet.move_batch_to_device(batch, device)
-            optimizer.zero_grad()
+            # optimizer.zero_grad()
 
             batch['img_mask'] = 1 - torchvision.transforms.Normalize(batch['img_mask'].mean(), batch['img_mask'].std())(batch['img_mask'])
             # pcl_out = pose_out = img_out = pcl_rgb_out = []
