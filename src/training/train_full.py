@@ -295,7 +295,7 @@ def main(config):
       pose_net = PoseNet() ## Need to merge
       ckpt_recon = f'src/runs/{config["experiment_name"]}/recon_model_best.ckpt'
       recon_net.load_state_dict(torch.load(ckpt_recon, map_location='cpu'))
-      ckpt_pose = f'src/runs/{config["experiment_name"]}/pose_model_inf.ckpt'
+      ckpt_pose = f'src/runs/{config["experiment_name"]}/pose_model_best.ckpt'
       pose_net.load_state_dict(torch.load(ckpt_pose, map_location='cpu'))
     else: 
       recon_net = ReconstructionNet()
