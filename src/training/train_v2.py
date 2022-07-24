@@ -77,6 +77,17 @@ def train(recon_net,pose_net,device,config,trainloader,valloader, initial_pcl = 
     val_log_symm_loss = []
 
     for epoch in range(num_epochs):
+
+        if(epoch == 70):
+          pose_net.eval()
+          config['lambda_3d'] = 0
+          config['lambda_symm'] = 0
+          config['lambda_pose'] = 0
+          config['lambda_ae'] = 10
+          config['lambda_ae_mask'] = 10
+          config['lambda_ae_pose'] = 0
+          config['lambda_mask_pose'] = 0
+
         train_loss_running = []
         pose_loss_running = []
         recon_loss_running = []
