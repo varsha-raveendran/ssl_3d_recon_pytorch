@@ -19,7 +19,7 @@ class ShapeNet(torch.utils.data.Dataset):
 
     def __init__(self, split, category, n_proj):
         super().__init__()
-        assert split in ['train', 'val', 'overfit', 'overfit_10']
+        assert split in ['train', 'val', 'overfit', 'overfit_10', 'test']
         self.category = category
         self.n_proj = n_proj
         self.items = np.load('src/data/splits/shapenet/images_list_%s_%s.npy'%(category, split), allow_pickle=True)
