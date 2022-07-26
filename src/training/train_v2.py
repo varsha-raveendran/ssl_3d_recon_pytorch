@@ -21,11 +21,9 @@ def train(recon_net,pose_net,device,config,trainloader,valloader, initial_pcl = 
     if initial_pcl != None:
       initial_pcl = initial_pcl.to(device)
 
-    wandb.init(project='v1',reinit=True)
+    wandb.init(project='v1',reinit=True,  config = config)
     print("training model!")
-    # loss_criterion = torch.nn.MSELoss()
 
-    # loss_criterion.to(device)
 
     # Initialize projection modules
     world2cam = World2Cam()
