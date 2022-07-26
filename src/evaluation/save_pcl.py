@@ -231,7 +231,7 @@ def optimise_and_save(item, config):
     recon_net.eval()
     output_pcl, _ = recon_net(img_rgb)
     export_pointcloud_to_npy(
-        f'output/{item["name"]}.npy', torch.squeeze(output_pcl, 0).T.cpu().detach().numpy())
+        f'output/{config["category"]}/{item["name"]}.npy', torch.squeeze(output_pcl, 0).T.cpu().detach().numpy())
 
 
 def export_pointcloud_to_npy(path, pointcloud):
