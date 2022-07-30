@@ -255,6 +255,8 @@ def train(recon_net,pose_net,device,config,trainloader,valloader, initial_pcl = 
         if(not config['iso']):
             val_loss,val_pose_loss,val_recon_loss,val_symm_loss = \
                         validate(recon_net,pose_net,device,config,valloader)
+            recon_net.train()
+            pose_net.train()
         
             val_log_total_loss.append(val_loss[0])
             val_log_pose_loss.append(val_pose_loss[0])
