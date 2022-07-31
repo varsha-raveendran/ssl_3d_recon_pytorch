@@ -17,6 +17,7 @@ def optimise_and_save(item, config):
     img_rgb = torch.unsqueeze(item['img_rgb'], 0).to(device)
     img_mask = torch.unsqueeze(item['img_mask'], 0).to(device)
     img_mask = 1 - torchvision.transforms.Normalize(img_mask[0].mean(), img_mask[0].std())(img_mask[0])
+    img_mask = (img_mask > 0.9).float()
     # random_pose = torch.unsqueeze(item['random_pose'], 0).to(device)
     gt_pose = torch.unsqueeze(torch.from_numpy(item['gt_pose']), 0).to(device)
 

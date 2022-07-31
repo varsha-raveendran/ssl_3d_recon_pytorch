@@ -68,9 +68,11 @@ class ImageLoss(nn.Module):
             pred_white = torch.unsqueeze(torch.unsqueeze(pred,3),3)
             pred_white = pred_white.repeat(1,1,1,grid_h,grid_w) ### Check tile function
 
-            gt_white_th = gt_white + (1.-gt_white)*1e6*torch.ones_like(gt_white)
+            # gt_white_th = gt_white + (1.-gt_white)*torch.ones_like(gt_white)
+            gt_white_th = gt_white + abs(1.-gt_white)*1e6*torch.ones_like(gt_white)
             dist_masked = gt_white_th * torch.from_numpy(dist_mat).cuda() * pred_white
 
+            # pred_mask = (pred_white) + ((1.-pred_white))*1e6*torch.ones_like(pred_white)
             pred_mask = (pred_white) + ((1.-pred_white))*1e6*torch.ones_like(pred_white)
             dist_masked_inv = pred_mask * torch.from_numpy(dist_mat).cuda() * gt_white
 

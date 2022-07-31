@@ -40,12 +40,14 @@ def train(recon_net,pose_net,device,config,trainloader,valloader, initial_pcl = 
         {
             # TODO: optimizer params and learning rate for model (lr provided in config)
             'params' : recon_net.parameters(),
-            'lr': config['learning_rate_recon_net']
+            'lr': config['learning_rate_recon_net'],
+            # 'weight_decay': 0.0001,
         },
         {
             # TODO: optimizer params and learning rate for latent code (lr provided in config)
             'params': pose_net.parameters(),
-            'lr': config['learning_rate_pose_net']
+            'lr': config['learning_rate_pose_net'],
+            # 'weight_decay': 0.0001,
         }
     ])
     # scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[4000], gamma=0.1, verbose=False)
@@ -74,9 +76,11 @@ def train(recon_net,pose_net,device,config,trainloader,valloader, initial_pcl = 
     val_log_recon_loss = []
     val_log_symm_loss = []
 
+    wandb.watch(recon_net, log_freq=100,log_graph=False)
+    wandb.watch(pose_net, log_freq=100,log_graph=False)
     for epoch in range(num_epochs):
 
-        if(epoch == 70):
+        if(epoch == 35):
           pose_net.eval()
           config['lambda_3d'] = 0
           config['lambda_symm'] = 0
@@ -101,6 +105,7 @@ def train(recon_net,pose_net,device,config,trainloader,valloader, initial_pcl = 
 
             batch['img_mask'] = 1 - torchvision.transforms.Normalize(batch['img_mask'].mean(), batch['img_mask'].std())(batch['img_mask'])
             # pcl_out = pose_out = img_out = pcl_rgb_out = []
+            batch['img_mask'] = (batch['img_mask'] > 0.9).float()
             pcl_out_rot = []
             pcl_out_persp = []
             mask_out = []
@@ -185,7 +190,7 @@ def train(recon_net,pose_net,device,config,trainloader,valloader, initial_pcl = 
             # print('MASK CHECK : ',batch['img_mask'].shape,torch.stack(mask_out)[0].shape)
             mask_ae_loss, mask_fwd, mask_bwd = img_loss(torch.squeeze(batch['img_mask'],1), torch.stack(mask_out)[0],
                     'bce', affinity_loss=True)
-            # print('Mask Loss Check ')
+            # print('Mask Loss Check ', mask_ae_loss, mask_fwd, mask_bwd)
 
             # Pose Loss
             pose_all = torch.permute(pose_all,[1,0,2])
@@ -243,7 +248,7 @@ def train(recon_net,pose_net,device,config,trainloader,valloader, initial_pcl = 
 
             optimizer.step()
             # scheduler.step()
-            print('Iteration : ',i)
+            print('Epoch: ', epoch, 'Iteration : ',i)
             print('Loss : ',total_loss.item())
             wandb.log({'Total Loss': total_loss.item()})
             wandb.log({'Recon_loss': recon_loss.item()})
@@ -312,8 +317,8 @@ def train(recon_net,pose_net,device,config,trainloader,valloader, initial_pcl = 
             torch.save(pose_net.state_dict(), f'src/runs/{config["experiment_name"]}/pose_model_best.ckpt')
 
             # Saving to GDrive
-            torch.save(recon_net.state_dict(), f'../drive/MyDrive/recon_model_best.ckpt')
-            torch.save(pose_net.state_dict(), f'../drive/MyDrive/pose_model_best.ckpt')
+            # torch.save(recon_net.state_dict(), f'../drive/MyDrive/recon_model_best.ckpt')
+            # torch.save(pose_net.state_dict(), f'../drive/MyDrive/pose_model_best.ckpt')
 
         else:
           if(epoch ==0 or (sum(train_loss_running)/ len(train_loss_running))<best_loss):
@@ -323,8 +328,8 @@ def train(recon_net,pose_net,device,config,trainloader,valloader, initial_pcl = 
             torch.save(pose_net.state_dict(), f'src/runs/{config["experiment_name"]}/pose_model_inf.ckpt')
 
             # Saving to GDrive
-            torch.save(recon_net.state_dict(), f'../drive/MyDrive/recon_model_inf.ckpt')
-            torch.save(pose_net.state_dict(), f'../drive/MyDrive/pose_model_inf.ckpt')    
+            # torch.save(recon_net.state_dict(), f'../drive/MyDrive/recon_model_inf.ckpt')
+            # torch.save(pose_net.state_dict(), f'../drive/MyDrive/pose_model_inf.ckpt')    
 
             
             

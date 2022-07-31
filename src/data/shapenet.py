@@ -2,6 +2,8 @@ from pathlib import Path
 import json
 from os.path import join, abspath, basename
 from random import random
+from random import sample
+
 from PIL import Image
 import numpy as np
 import torch
@@ -32,7 +34,6 @@ class ShapeNet(torch.utils.data.Dataset):
         filename = self.file_names[index]
         render_id = self.image_ids[index]
         # print(render_id)
-        
         #Load RGB view
         # rgb_image = Image.open(self.rendered_path / Path(self.category)/ filename / Path('render_%s.png'%render_id))
         transform = transforms.Compose([
@@ -53,7 +54,9 @@ class ShapeNet(torch.utils.data.Dataset):
         mask_image = mask_image.resize((64,64),Image.ANTIALIAS)
         #mask_path = join(self.rendered_path, f'{self.category}/{filename}/depth_{render_id}.png')
         #mask_image =  cv2.imread(mask_path, cv2.IMREAD_UNCHANGED)
-        mask_tensor = transform(mask_image)
+        mask_tensor = transform(mask_image).float()
+        # mask_tensor = 1 - transforms.Normalize(mask_tensor.mean(),mask_tensor.std())(mask_tensor)
+
         #Load point cloud
         pcl = np.load(self.pcl_path / Path(self.category) / filename / 'pointcloud_1024.npy').astype(np.float32)
         pcl = torch.from_numpy(pcl)
@@ -62,8 +65,10 @@ class ShapeNet(torch.utils.data.Dataset):
         with open(join(self.rendered_path , f'{self.category}/{filename}', 'view.txt'), 'r') as fp:
             angles = [item.split('\n')[0] for item in fp.readlines()]
         poses = []
+        indices = sample(range(10), self.n_proj - 1)
         for k in range(self.n_proj - 1):
-            index = np.random.randint(0,10) 
+            #index = np.random.randint(0,10) 
+            index = indices[k]
             angle = angles[int(index)]
             angle = [float(item)*(np.pi/180.) for item in angle.split(' ')[:2]]    
             pose = np.array(angle)
@@ -78,7 +83,7 @@ class ShapeNet(torch.utils.data.Dataset):
         return {
             'name': filename,
             'img_rgb' : img_tensor.float() ,
-            'img_mask' : mask_tensor.float() ,
+            'img_mask' : mask_tensor ,
             'pcl' : torch.permute(pcl, ( 1, 0)),
             'gt_pose' : gt_pose,
             'random_pose': random_pose 
