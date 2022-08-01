@@ -218,10 +218,22 @@ def optimise_and_save(item, config):
         os.makedirs('output')
 
     recon_net.eval()
-    output_pcl, _= recon_net(img_rgb)
-    export_pointcloud_to_obj(f'output/{item["name"]}.obj', torch.squeeze(output_pcl,0).T.cpu().detach().numpy())    
+    output_pcl, output_rgb = recon_net(img_rgb)
+    export_pointcloud_to_npy(
+        f'output/{config["category"]}/{item["name"]}.npy', torch.squeeze(output_pcl, 0).T.cpu().detach().numpy())
+    export_pointcloud_to_npy(
+        f'output/{config["category"]}/{item["name"]}_rgb.npy', torch.squeeze(output_rgb, 0).T.cpu().detach().numpy())
 
-
+def export_pointcloud_to_npy(path, pointcloud):
+    """
+    export pointcloud as npy format
+    :param path: output path for the npy file
+    :param pointcloud: Nx3 points
+    :return: None
+    """
+    with open(path, 'wb') as f:
+        np.save(f, pointcloud)
+        
 def export_pointcloud_to_obj(path, pointcloud):
     """
     export pointcloud as OBJ
