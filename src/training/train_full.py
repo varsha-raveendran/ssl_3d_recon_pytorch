@@ -104,6 +104,7 @@ def train(recon_net,pose_net,device,config,trainloader,valloader, initial_pcl = 
 
             batch['img_mask'] = 1 - torchvision.transforms.Normalize(batch['img_mask'][0].mean(), batch['img_mask'][0].std())(batch['img_mask'][0])
             # pcl_out = pose_out = img_out = pcl_rgb_out = []
+            batch['img_mask'] = (batch['img_mask'] > 0.9).float()
             pcl_out_rot = []
             pcl_out_persp = []
             mask_out = []
