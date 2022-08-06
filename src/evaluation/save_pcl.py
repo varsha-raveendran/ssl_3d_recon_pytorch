@@ -4,6 +4,7 @@ import torch
 import torchvision
 import os
 from pytorch3d.loss import chamfer_distance
+import wandb
 
 from src.data.shapenet import ShapeNet
 from src.network_architecture.recon_model import ReconstructionNet
@@ -12,6 +13,8 @@ from src.renderer.projection import World2Cam, PerspectiveTransform, RgbContProj
 from src.loss.loss import ImageLoss,GCCLoss,PoseLoss
 
 def optimise_and_save(item, config):
+    
+    total_loss = 0
     device = torch.device(config['device'])
     #Get the item variables we need in the correct dimensions
     img_rgb = torch.unsqueeze(item['img_rgb'], 0).to(device)
@@ -95,8 +98,6 @@ def optimise_and_save(item, config):
             
         optimizer.zero_grad()
 
-        # img_mask = 1 - torchvision.transforms.Normalize(img_mask[0].mean(), img_mask[0].std())(img_mask[0])
-
         pcl_out_rot = []
         pcl_out_persp = []
         mask_out = []
@@ -171,11 +172,11 @@ def optimise_and_save(item, config):
         #         (config['lambda_pose']*pose_loss_pose)
         total_loss = 0.
         reg_loss = 0.
-        recon_loss = (config['lambda_ae']*img_ae_loss) + (config['lambda_3d']*consist_3d_loss)\
-                            + (config['lambda_ae_mask']*mask_ae_loss) +\
-                            (config['lambda_mask_fwd']*mask_fwd) + (config['lambda_mask_bwd']*mask_bwd)
-        if config["use_symmetry_loss"]:
-            recon_loss += (config['lambda_symm']*symm_loss)
+        # recon_loss = (config['lambda_ae']*img_ae_loss) + (config['lambda_3d']*consist_3d_loss)\
+        #                     + (config['lambda_ae_mask']*mask_ae_loss) +\
+        #                     (config['lambda_mask_fwd']*mask_fwd) + (config['lambda_mask_bwd']*mask_bwd)
+        # if config["use_symmetry_loss"]:
+        #     recon_loss += (config['lambda_symm']*symm_loss)
  
         for idx in range(config['n_proj']):
           reg_loss += chamfer_distance(torch.permute(initial_pcl,[0,2,1]), torch.permute(pcl_out[idx],[0,2,1]))[0]
@@ -185,20 +186,20 @@ def optimise_and_save(item, config):
                         (config['lambda_mask_fwd']*mask_fwd) + (config['lambda_mask_bwd']*mask_bwd) +\
                                 (config['lambda_symm']*symm_loss)  
 
-        # loss.backward(retain_graph=True)
-        # recon_loss.backward(retain_graph=True)
-        # pose_loss_val.backward(retain_graph=True)
+       
         total_loss.backward(retain_graph=True)
+       
 
         optimizer.step()
 
         print('Iteration : ',epoch)
         print('Loss : ',total_loss.item())
+        
         # print('recon_loss : ',recon_loss.item())
         # print('pose_loss : ',pose_loss_val.item())
 
         train_loss_running.append(total_loss.item())
-        recon_loss_running.append(recon_loss.item())
+        #recon_loss_running.append(recon_loss.item())
         # if config["use_symmetry_loss"]:
         #     symm_loss_running.append(symm_loss.item())
 
@@ -216,11 +217,26 @@ def optimise_and_save(item, config):
     # Now save       
     if not os.path.exists('output'):
         os.makedirs('output')
+        os.makedirs(f'output/{config["category"]}')
 
     recon_net.eval()
-    output_pcl, _= recon_net(img_rgb)
-    export_pointcloud_to_obj(f'output/{item["name"]}.obj', torch.squeeze(output_pcl,0).T.cpu().detach().numpy())    
+    output_pcl, output_rgb= recon_net(img_rgb)
+    export_pointcloud_to_npy(
+        f'output/{config["category"]}/{item["name"]}.npy', torch.squeeze(output_pcl, 0).T.cpu().detach().numpy())
+    export_pointcloud_to_npy(
+        f'output/{config["category"]}/{item["name"]}_rgb.npy', torch.squeeze(output_rgb, 0).T.cpu().detach().numpy())
+    return total_loss.item()
 
+def export_pointcloud_to_npy(path, pointcloud):
+    """
+    export pointcloud as npy format
+    :param path: output path for the npy file
+    :param pointcloud: Nx3 points
+    :return: None
+    """
+    with open(path, 'wb') as f:
+
+        np.save(f, pointcloud)
 
 def export_pointcloud_to_obj(path, pointcloud):
     """
@@ -237,7 +253,10 @@ def export_pointcloud_to_obj(path, pointcloud):
 
 
 def main(config):
+    wandb.login(relogin=True)
+    wandb.init(project='evaluation',reinit=True,  config = config)
     trainset = ShapeNet('test', config['category'], config['n_proj'])
 
     for item in trainset:
-        optimise_and_save(item, config)
+        total_loss = optimise_and_save(item, config)
+        wandb.log({"name" : item['name'] , "loss" :total_loss})

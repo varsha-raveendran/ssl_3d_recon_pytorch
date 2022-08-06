@@ -305,19 +305,19 @@ def train(recon_net,pose_net,device,config,trainloader,valloader, initial_pcl = 
             torch.save(pose_net.state_dict(), f'src/runs/{config["experiment_name"]}/pose_model_best.ckpt')
 
             # Saving to GDrive
-            torch.save(recon_net.state_dict(), f'../drive/MyDrive/recon_model_best.ckpt')
-            torch.save(pose_net.state_dict(), f'../drive/MyDrive/pose_model_best.ckpt')
+            # torch.save(recon_net.state_dict(), f'../drive/MyDrive/recon_model_best.ckpt')
+            # torch.save(pose_net.state_dict(), f'../drive/MyDrive/pose_model_best.ckpt')
 
         else:
-          if(epoch ==0 or (sum(train_loss_running)/ len(train_loss_running))<best_loss):
-            print('Saving new model!')
-            best_loss = sum(train_loss_running)/ len(train_loss_running)
-            torch.save(recon_net.state_dict(), f'src/runs/{config["experiment_name"]}/recon_model_inf.ckpt')
-            torch.save(pose_net.state_dict(), f'src/runs/{config["experiment_name"]}/pose_model_inf.ckpt')
+          # if(epoch ==0 or (sum(train_loss_running)/ len(train_loss_running))<best_loss):
+          print('Saving new model!')
+          best_loss = sum(train_loss_running)/ len(train_loss_running)
+          torch.save(recon_net.state_dict(), f'src/runs/{config["experiment_name"]}/recon_model_inf.ckpt')
+          torch.save(pose_net.state_dict(), f'src/runs/{config["experiment_name"]}/pose_model_inf.ckpt')
 
             # Saving to GDrive
-            torch.save(recon_net.state_dict(), f'../drive/MyDrive/recon_model_inf.ckpt')
-            torch.save(pose_net.state_dict(), f'../drive/MyDrive/pose_model_inf.ckpt')    
+            # torch.save(recon_net.state_dict(), f'../drive/MyDrive/recon_model_inf.ckpt')
+            # torch.save(pose_net.state_dict(), f'../drive/MyDrive/pose_model_inf.ckpt')    
 
 
             

@@ -54,7 +54,7 @@ class ShapeNet(torch.utils.data.Dataset):
         mask_image = mask_image.resize((64,64),Image.ANTIALIAS)
         #mask_path = join(self.rendered_path, f'{self.category}/{filename}/depth_{render_id}.png')
         #mask_image =  cv2.imread(mask_path, cv2.IMREAD_UNCHANGED)
-        mask_tensor = transform(mask_image).float()
+        mask_tensor = transform(mask_image).float() 
         # mask_tensor = 1 - transforms.Normalize(mask_tensor.mean(),mask_tensor.std())(mask_tensor)
 
         #Load point cloud
@@ -83,7 +83,7 @@ class ShapeNet(torch.utils.data.Dataset):
         return {
             'name': filename,
             'img_rgb' : img_tensor.float() ,
-            'img_mask' : mask_tensor ,
+            'img_mask' : mask_tensor / torch.max(mask_tensor),
             'pcl' : torch.permute(pcl, ( 1, 0)),
             'gt_pose' : gt_pose,
             'random_pose': random_pose 

@@ -28,10 +28,13 @@ class PoseNet(nn.Module):
         self.decoder = nn.Sequential(
             nn.Linear(in_features=4*4*256, out_features=128),
             nn.ReLU(),
+
             nn.Linear(in_features=128, out_features=128),
             nn.ReLU(),
+
             nn.Linear(in_features=128, out_features=128),
             nn.ReLU(),
+
             nn.Linear(in_features=128, out_features=2),
             nn.Tanh(),
         )
