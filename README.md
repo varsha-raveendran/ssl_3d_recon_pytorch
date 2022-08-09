@@ -25,14 +25,10 @@ Modify the config dictionary inside run.py and execute the following:
 python run.py
 ```
 
-## Evaluation
-First save the point clouds 
+## Evaluation 
+Modify the config dictionary inside run_save.py and execute the following:
 ```
 python run_save.py
-```
-Then change directory to src/evaluation/ and run
-```
-python get_metric_pcl.py
 ```
 
 
