@@ -41,13 +41,13 @@ def train(recon_net,pose_net,device,config,trainloader,valloader, initial_pcl = 
             # TODO: optimizer params and learning rate for model (lr provided in config)
             'params' : recon_net.parameters(),
             'lr': config['learning_rate_recon_net'],
-            'weight_decay': 0.00001,
+            # 'weight_decay': 0.00001,
         },
         {
             # TODO: optimizer params and learning rate for latent code (lr provided in config)
             'params': pose_net.parameters(),
             'lr': config['learning_rate_pose_net'],
-            'weight_decay': 0.00001,
+            # 'weight_decay': 0.00001,
         }
     ])
     # scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[4000], gamma=0.1, verbose=False)
@@ -80,7 +80,7 @@ def train(recon_net,pose_net,device,config,trainloader,valloader, initial_pcl = 
     #wandb.watch(pose_net, log_freq=100,log_graph=False)
     for epoch in range(num_epochs):
 
-        if(epoch == 80):
+        if(epoch == 35):
           pose_net.eval()
           config['lambda_3d'] = 0
           config['lambda_symm'] = 0

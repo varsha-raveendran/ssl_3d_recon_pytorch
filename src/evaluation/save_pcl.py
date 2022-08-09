@@ -12,8 +12,10 @@ from src.network_architecture.pose_net import PoseNet
 from src.renderer.projection import World2Cam, PerspectiveTransform, RgbContProj, ContProj
 from src.loss.loss import ImageLoss,GCCLoss,PoseLoss
 
+from pytorch3d.loss import chamfer_distance
+from pytorch3d.ops import corresponding_points_alignment
+
 def optimise_and_save(item, config):
-    
     total_loss = 0
     device = torch.device(config['device'])
     #Get the item variables we need in the correct dimensions
@@ -88,6 +90,11 @@ def optimise_and_save(item, config):
     log_recon_loss = []
     log_symm_loss = []
 
+    gt_mask = None
+    pred_mask = None
+    pred_img = None
+    pred_pose = None
+
     for epoch in range(num_epochs):
         train_loss_running = []
         pose_loss_running = []
@@ -137,6 +144,24 @@ def optimise_and_save(item, config):
 
             pose_out.append(pose_net(torch.permute(img_out[idx],[0, 3, 1, 2]).contiguous()))
 
+        temp_img = torch.clone(img_out[0][0])
+        temp_mask = torch.clone(mask_out[0])
+        temp_gray_img = torchvision.transforms.Grayscale()(torch.permute(temp_img,[2,0,1]))
+        temp_gray_img = torch.permute(temp_gray_img,[1,2,0])
+        temp_pcl_xyz = torch.squeeze(torch.clone(pcl_out[0]),0).T.cpu().detach().numpy()
+        images = wandb.Image((temp_gray_img.cpu().detach().numpy()*255).astype(np.uint8),
+                                caption="Projected Image")
+        masks = wandb.Image((temp_mask.cpu().detach().numpy()*255).astype(np.uint8), caption="Projected Mask")
+        log_list = [images,masks]
+
+        pred_mask = (temp_mask.cpu().detach().numpy()*255).astype(np.uint8)
+        pred_img = (temp_gray_img.cpu().detach().numpy()*255).astype(np.uint8)
+        pred_pose = pose_out[0]
+
+
+        wandb.log({"image": log_list})
+            
+        wandb.log({"point_cloud_1" : [wandb.Object3D(temp_pcl_xyz)]})
         # Define Losses
         # 2D Consistency Loss - L2
         img_ae_loss, _, _ = img_loss(img_rgb, torch.permute(torch.stack(img_out)[0],[0, 3, 1, 2]).contiguous()
@@ -183,8 +208,8 @@ def optimise_and_save(item, config):
                 
         total_loss = (config['lambda_ae']*img_ae_loss) + (config['lambda_3d']*reg_loss)\
                         + (config['lambda_ae_mask']*mask_ae_loss) +\
-                        (config['lambda_mask_fwd']*mask_fwd) + (config['lambda_mask_bwd']*mask_bwd) +\
-                                (config['lambda_symm']*symm_loss)  
+                        (config['lambda_mask_fwd']*mask_fwd) + (config['lambda_mask_bwd']*mask_bwd) 
+                        #+ (config['lambda_symm']*symm_loss)  
 
        
         total_loss.backward(retain_graph=True)
@@ -214,18 +239,17 @@ def optimise_and_save(item, config):
         #     torch.save(recon_net.state_dict(), f'../drive/MyDrive/recon_model_inf.ckpt')
         #     torch.save(pose_net.state_dict(), f'../drive/MyDrive/pose_model_inf.ckpt')
 
-    # Now save       
-    if not os.path.exists('output'):
-        os.makedirs('output')
-        os.makedirs(f'output/{config["category"]}')
+    
 
     recon_net.eval()
-    output_pcl, output_rgb= recon_net(img_rgb)
+    output_pcl, output_rgb = recon_net(img_rgb)
+ 
+
     export_pointcloud_to_npy(
-        f'output/{config["category"]}/{item["name"]}.npy', torch.squeeze(output_pcl, 0).T.cpu().detach().numpy())
+        f'output1/{config["category"]}/{item["name"]}.npy', torch.squeeze(output_pcl, 0).T.cpu().detach().numpy())
     export_pointcloud_to_npy(
-        f'output/{config["category"]}/{item["name"]}_rgb.npy', torch.squeeze(output_rgb, 0).T.cpu().detach().numpy())
-    return total_loss.item()
+        f'output1/{config["category"]}/rgb/{item["name"]}_rgb.npy', torch.squeeze(output_rgb, 0).T.cpu().detach().numpy())
+    return total_loss.item(), pred_mask, pred_img, pred_pose, torch.squeeze(output_pcl, 0).T.cpu().detach()
 
 def export_pointcloud_to_npy(path, pointcloud):
     """
@@ -251,12 +275,47 @@ def export_pointcloud_to_obj(path, pointcloud):
         file.write(val)
     file.close()
 
+def evaluate_pred_pcl(pred_pcl, item):
+         
+    gt_pcl = item["pcl"].permute(1,0).unsqueeze(0)
+    pred_pcl = pred_pcl.unsqueeze(0)
+    # print(gt_pcl.shape)
+    # print(pred_pcl.shape)
+    
+    # get the transformation 
+    R, T, _ = corresponding_points_alignment(pred_pcl, gt_pcl)
+    pcl_rot = R.squeeze(0) @ torch.permute(pred_pcl.squeeze(0), (1,0))
+    loss,_ = chamfer_distance(pcl_rot.permute(1,0).unsqueeze(0),gt_pcl)
+    return loss
 
 def main(config):
+    # Now save       
+    if not os.path.exists('output1'):
+        os.makedirs('output1')
+        os.makedirs(f'output1/{config["category"]}')
+        os.makedirs(f'output1/{config["category"]}/rgb')
     wandb.login(relogin=True)
-    wandb.init(project='evaluation',reinit=True,  config = config)
+    run = wandb.init(project='evaluation',reinit=True,  config = config, entity="ssl_3d")
     trainset = ShapeNet('test', config['category'], config['n_proj'])
-
+    print(trainset)
+    columns=["id", "name", "pred_mask", "pred_img",  "chamfer_dist", "loss"]
+    test_table = wandb.Table(columns=columns)
+    id_ = 0
     for item in trainset:
-        total_loss = optimise_and_save(item, config)
-        wandb.log({"name" : item['name'] , "loss" :total_loss})
+        
+        total_loss, pred_mask, pred_img, pred_pose, pred_pcl = optimise_and_save(item, config)
+        
+        chamfer_dist = evaluate_pred_pcl(pred_pcl, item)
+        run.log({"loss" :total_loss})
+        run.log({"chamfer": chamfer_dist})
+
+        test_table.add_data(id_, item['name'], wandb.Image(pred_mask), \
+        wandb.Image(pred_img), chamfer_dist, total_loss)
+        id_ = id_ + 1
+        if id_ % 10 == 0: 
+          print("Logging to wandb Table")
+          run.log({"eval_2": test_table})
+          test_table = wandb.Table(columns=columns)
+
+    run.log({"eval_2": test_table})
+    run.finish()
