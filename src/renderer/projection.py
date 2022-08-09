@@ -222,6 +222,11 @@ class ContProj(nn.Module):
         grid_xy = torch.stack(out_grid, dim=2).to(device)                # (H,W,2)
         grid_diff = torch.unsqueeze(torch.unsqueeze(pcl_xy, dim=2), dim=2) - grid_xy # (BS,N_PTS,H,W,2)
         grid_val = self.apply_kernel(grid_diff, sigma_sq)    # (BS,N_PTS,H,W,2)
+        del out_grid
+        del grid_z
+        del grid_xyz
+        del grid_xy
+        del grid_w
         grid_val = grid_val[:,:,:,:,0]*grid_val[:,:,:,:,1]  # (BS,N_PTS,H,W)
         grid_val = torch.sum(grid_val, dim=1)          # (BS,H,W)
         grid_val = torch.tanh(grid_val)

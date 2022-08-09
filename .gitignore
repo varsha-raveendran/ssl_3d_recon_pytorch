@@ -133,3 +133,6 @@ dmypy.json
 *ply*
 wandb
 *runs*
+
+*.obj
+*.csv

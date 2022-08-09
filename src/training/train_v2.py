@@ -13,15 +13,15 @@ from src.renderer.projection import World2Cam, PerspectiveTransform, RgbContProj
 from src.loss.loss import ImageLoss,GCCLoss,PoseLoss
 from src.training.validation import *
 
-
 import wandb
+
 
 def train(recon_net,pose_net,device,config,trainloader,valloader, initial_pcl = None):
     # For inference stage optimisation
     if initial_pcl != None:
       initial_pcl = initial_pcl.to(device)
 
-    wandb.init(project='v1',reinit=True, config = config)
+    wandb.init(project='train_ml3d',reinit=True,  config = config)
     print("training model!")
 
 
@@ -40,15 +40,17 @@ def train(recon_net,pose_net,device,config,trainloader,valloader, initial_pcl = 
         {
             # TODO: optimizer params and learning rate for model (lr provided in config)
             'params' : recon_net.parameters(),
-            'lr': config['learning_rate_recon_net']
+            'lr': config['learning_rate_recon_net'],
+            # 'weight_decay': 0.00001,
         },
         {
             # TODO: optimizer params and learning rate for latent code (lr provided in config)
             'params': pose_net.parameters(),
-            'lr': config['learning_rate_pose_net']
+            'lr': config['learning_rate_pose_net'],
+            # 'weight_decay': 0.00001,
         }
     ])
-
+    # scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[4000], gamma=0.1, verbose=False)
     ## Setting GPU
     recon_net.to(device)
     pose_net.to(device)
@@ -56,13 +58,13 @@ def train(recon_net,pose_net,device,config,trainloader,valloader, initial_pcl = 
     recon_net.train()
     pose_net.train()
 
-    best_accuracy = 0.
+    best_loss = -1*1e+10
 
     train_loss_running = 0.
     num_epochs = config['max_epochs']
     if(config['use_pretrained']):
       print('Using Pre Trained Model!')
-
+    
     ## Logging metrics for training epochs
     log_total_loss = []
     log_pose_loss = []
@@ -74,24 +76,23 @@ def train(recon_net,pose_net,device,config,trainloader,valloader, initial_pcl = 
     val_log_recon_loss = []
     val_log_symm_loss = []
 
-    
-
+    #wandb.watch(recon_net, log_freq=100,log_graph=False)
+    #wandb.watch(pose_net, log_freq=100,log_graph=False)
     for epoch in range(num_epochs):
 
-
-        if(epoch ==70):
-            pose_net.eval()
-            config['lambda_3d'] = 0
-            config['lambda_symm'] = 0
-            config['lambda_pose'] = 0
-            config['lambda_ae'] = 10
-            config['lambda_ae_mask'] = 10
-            config['lambda_ae_pose'] = 0
-            config['lambda_mask_pose'] = 0
+        if(epoch == 35):
+          pose_net.eval()
+          config['lambda_3d'] = 0
+          config['lambda_symm'] = 0
+          config['lambda_pose'] = 0
+          config['lambda_ae'] = 10
+          config['lambda_ae_mask'] = 10
+          config['lambda_ae_pose'] = 0
+          config['lambda_mask_pose'] = 0
 
         train_loss_running = []
         pose_loss_running = []
-        recon_loss_running = [] 
+        recon_loss_running = []
         symm_loss_running = []
         print('**********************************************')
         print('Epoch : ', epoch)
@@ -102,8 +103,9 @@ def train(recon_net,pose_net,device,config,trainloader,valloader, initial_pcl = 
             ShapeNet.move_batch_to_device(batch, device)
             optimizer.zero_grad()
 
-            batch['img_mask'] = 1 - torchvision.transforms.Normalize(batch['img_mask'][0].mean(), batch['img_mask'][0].std())(batch['img_mask'][0])
+            batch['img_mask'] = 1 - torchvision.transforms.Normalize(batch['img_mask'].mean(), batch['img_mask'].std())(batch['img_mask'])
             # pcl_out = pose_out = img_out = pcl_rgb_out = []
+            batch['img_mask'] = (batch['img_mask'] > 0.9).float()
             pcl_out_rot = []
             pcl_out_persp = []
             mask_out = []
@@ -129,6 +131,7 @@ def train(recon_net,pose_net,device,config,trainloader,valloader, initial_pcl = 
 
             ## USE THE PORJECTION MODULE TO GET PROJECTIONS FROM PC1 AND POSES
             for idx in range(config['n_proj']):
+
                 # print("PointClouds:", pcl_out[0].shape)
                 pcl_out_rot = world2cam(pcl_out[0], pose_all[:, idx, 0],
                     pose_all[:,idx,1], 2., 2., batch['img_rgb'].shape[0],config["device"])
@@ -138,27 +141,33 @@ def train(recon_net,pose_net,device,config,trainloader,valloader, initial_pcl = 
                     64, 64,1., 100, 'rgb',config["device"])
                 # print('Proje img out : ',temp_img_out[0].shape)
                 img_out.append(temp_img_out[0])
+                # print("img_out max" , torch.max(temp_img_out[0][0]))
                 mask_out.append(get_proj_mask(pcl_out_persp, 64, 64,
                     1024, 0.4,config["device"])) ### Invert mask and image(?)
+                # print("mask_out max" , torch.max(mask_out[0][0]))
 
             temp_img = torch.clone(img_out[0][0])
-            temp_mask = torch.clone(mask_out[0])
+            temp_mask = torch.clone(mask_out[0][0])
+
             temp_gray_img = torchvision.transforms.Grayscale()(torch.permute(temp_img,[2,0,1]))
             temp_gray_img = torch.permute(temp_gray_img,[1,2,0])
+
+            temp_gt_mask = torch.clone(batch["img_mask"][0][0])
             
             # print(torch.squeeze(torch.clone(pcl_out[0]),0).T.shape)
-            temp_pcl_xyz = torch.squeeze(torch.clone(pcl_out[0]),0).T.cpu().detach().numpy()
-            temp_pcl_rgb = torch.squeeze(torch.clone(pcl_rgb_out[0]),0).T.cpu().detach().numpy()
+            temp_pcl_xyz = torch.permute(torch.squeeze(torch.clone(pcl_out[0]),0).T, [2,0,1])[0].cpu().detach().numpy()
+            #temp_pcl_rgb = torch.permute(torch.squeeze(torch.clone(pcl_rgb_out[0]),0).T, [2,0,1])[0].cpu().detach().numpy()
             
     #         point_cloud = wandb.Object3D({'type':'lidar/beta',
     #                                      'points':temp_pcl})
             images = wandb.Image((temp_gray_img.cpu().detach().numpy()*255).astype(np.uint8),
                                 caption="Projected Image")
             masks = wandb.Image((temp_mask.cpu().detach().numpy()*255).astype(np.uint8), caption="Projected Mask")
-            log_list = [images,masks]
+            gt_mask = wandb.Image((temp_gt_mask.cpu().detach().numpy()*255).astype(np.uint8), caption="Ground Truth Mask")
+            log_list = [images,masks, gt_mask]
             wandb.log({"image": log_list})
-            
-            wandb.log({"point_cloud_1" : [wandb.Object3D(temp_pcl_xyz),wandb.Object3D(temp_pcl_rgb)]})
+            # print(temp_pcl_xyz.shape)
+            wandb.log({"point_cloud_1" : [wandb.Object3D(temp_pcl_xyz)]})
 
 
             # print(img_out[1][0].shape)
@@ -170,20 +179,20 @@ def train(recon_net,pose_net,device,config,trainloader,valloader, initial_pcl = 
 
                 pose_out.append(pose_net(torch.permute(img_out[idx],[0, 3, 1, 2]).contiguous()))
 
-            temp_pcl = torch.squeeze(torch.clone(pcl_out[1]),0).T.cpu().detach().numpy()
+            #temp_pcl = torch.permute(torch.squeeze(torch.clone(pcl_out[1]),0).T, [2,0,1])[0].cpu().detach().numpy()
 #         temp_pcl2 = torch.squeeze(torch.clone(pcl_out[1]),0).T.cpu().detach().numpy()
-            gt_pcl = torch.squeeze(torch.clone(batch['pcl']),0).T.cpu().detach().numpy()
-            wandb.log({"point_cloud_2" : [wandb.Object3D(temp_pcl),wandb.Object3D(gt_pcl)]})
+            gt_pcl = torch.permute(torch.squeeze(torch.clone(batch['pcl']),0).T, [2,0,1])[0].cpu().detach().numpy()
+            wandb.log({"point_cloud_2" : [wandb.Object3D(gt_pcl)]})
 
             # Define Losses
             # 2D Consistency Loss - L2
             # print('IMAGE LOSS : ',torch.permute(torch.stack(img_out)[0],[0, 3, 1, 2]).contiguous().shape)
             img_ae_loss, _, _ = img_loss(batch['img_rgb'], torch.permute(torch.stack(img_out)[0],[0, 3, 1, 2]).contiguous()
                         , 'l2_sq')
-            # print('MASK CHECK : ',torch.squeeze(batch['img_mask'],1).shape,torch.stack(mask_out)[0].shape)
-            mask_ae_loss, mask_fwd, mask_bwd = img_loss(torch.squeeze(batch['img_mask'],1), torch.stack(mask_out)[0],
+            # print('MASK CHECK : ',batch['img_mask'].shape,torch.stack(mask_out)[0].shape)
+            mask_ae_loss, mask_fwd, mask_bwd = img_loss(torch.stack(mask_out)[0], torch.squeeze(batch['img_mask'],1),
                     'bce', affinity_loss=True)
-            # print('Mask Loss Check ')
+            # print('Mask Loss Check ', mask_ae_loss, mask_fwd, mask_bwd)
 
             # Pose Loss
             pose_all = torch.permute(pose_all,[1,0,2])
@@ -197,6 +206,8 @@ def train(recon_net,pose_net,device,config,trainloader,valloader, initial_pcl = 
             for idx in range(config['n_proj']):
                 consist_3d_loss += chamfer_distance(torch.permute(pcl_out[idx],[0,2,1]),torch.permute(pcl_out[0],[0,2,1]))[0]
 
+            # consist_3d_loss = 0
+            ##TODO
             # Symmetry loss - assumes symmetry of point cloud about z-axis
             # # Helps obtaining output aligned along z-axis
             pcl_y_pos = (pcl_out[0][:,:,1:2]>0).type(torch.FloatTensor).to(device)
@@ -219,6 +230,7 @@ def train(recon_net,pose_net,device,config,trainloader,valloader, initial_pcl = 
                 recon_loss += (config['lambda_symm']*symm_loss)
             pose_loss_val = (config['lambda_ae_pose']*img_ae_loss) + (config['lambda_pose']*pose_loss_pose)\
                             + (config['lambda_mask_pose']*mask_ae_loss)
+            
             if(not config['iso']):
                 total_loss = recon_loss + pose_loss_val
             else:    
@@ -228,18 +240,23 @@ def train(recon_net,pose_net,device,config,trainloader,valloader, initial_pcl = 
                 total_loss = (config['lambda_ae']*img_ae_loss) + (config['lambda_3d']*reg_loss)\
                                 + (config['lambda_ae_mask']*mask_ae_loss) +\
                                 (config['lambda_mask_fwd']*mask_fwd) + (config['lambda_mask_bwd']*mask_bwd) +\
-                                      (config['lambda_symm']*symm_loss)  
+                                      (config['lambda_symm']*symm_loss)
 
+            
             # loss.backward(retain_graph=True)
             # recon_loss.backward(retain_graph=True)
             # pose_loss_val.backward(retain_graph=True)
-            total_loss.backward(retain_graph=True)
+            if config['iso']:
+              total_loss.backward(retain_graph=True)
+            else:
+              recon_loss.backward(retain_graph=True)
+              pose_loss_val.backward(retain_graph=True)  
 
             optimizer.step()
-
-            print('Iteration : ',i)
+            # scheduler.step()
+            print('Epoch: ', epoch, 'Iteration : ',i)
             print('Loss : ',total_loss.item())
-            wandb.log({'Total Loss': total_loss.item()})
+            #wandb.log({'Total Loss': total_loss.item()})
             wandb.log({'Recon_loss': recon_loss.item()})
             wandb.log({'Pose_loss': pose_loss_val.item()})
             # print('recon_loss : ',recon_loss.item())
@@ -257,6 +274,7 @@ def train(recon_net,pose_net,device,config,trainloader,valloader, initial_pcl = 
                         validate(recon_net,pose_net,device,config,valloader)
             recon_net.train()
             pose_net.train()
+
         
             val_log_total_loss.append(val_loss[0])
             val_log_pose_loss.append(val_pose_loss[0])
@@ -301,24 +319,26 @@ def train(recon_net,pose_net,device,config,trainloader,valloader, initial_pcl = 
           if(epoch ==0 or (val_loss[0])<best_loss):
             print('Saving new model!')
             best_loss = val_loss[0]
-            torch.save(recon_net.state_dict(), f'src/runs/{config["experiment_name"]}/recon_model_best.ckpt')
-            torch.save(pose_net.state_dict(), f'src/runs/{config["experiment_name"]}/pose_model_best.ckpt')
+            torch.save(recon_net.state_dict(), f'src/runs/{config["experiment_name"]}/recon_model_best_{epoch}.ckpt')
+            torch.save(pose_net.state_dict(), f'src/runs/{config["experiment_name"]}/pose_model_best_{epoch}.ckpt')
 
             # Saving to GDrive
             # torch.save(recon_net.state_dict(), f'../drive/MyDrive/recon_model_best.ckpt')
             # torch.save(pose_net.state_dict(), f'../drive/MyDrive/pose_model_best.ckpt')
 
         else:
-          # if(epoch ==0 or (sum(train_loss_running)/ len(train_loss_running))<best_loss):
-          print('Saving new model!')
-          best_loss = sum(train_loss_running)/ len(train_loss_running)
-          torch.save(recon_net.state_dict(), f'src/runs/{config["experiment_name"]}/recon_model_inf.ckpt')
-          torch.save(pose_net.state_dict(), f'src/runs/{config["experiment_name"]}/pose_model_inf.ckpt')
+          if(epoch ==0 or (sum(train_loss_running)/ len(train_loss_running))<best_loss):
+            print('Saving new model!')
+            best_loss = sum(train_loss_running)/ len(train_loss_running)
+            torch.save(recon_net.state_dict(), f'src/runs/{config["experiment_name"]}/recon_model_inf_{epoch}.ckpt')
+            torch.save(pose_net.state_dict(), f'src/runs/{config["experiment_name"]}/pose_model_inf_{epoch}.ckpt')
 
             # Saving to GDrive
             # torch.save(recon_net.state_dict(), f'../drive/MyDrive/recon_model_inf.ckpt')
             # torch.save(pose_net.state_dict(), f'../drive/MyDrive/pose_model_inf.ckpt')    
 
+            
+            
 
             
 
@@ -326,10 +346,10 @@ def train(recon_net,pose_net,device,config,trainloader,valloader, initial_pcl = 
 
 def main(config):
 
-    trainset = ShapeNet('train' if not config['is_overfit'] else 'overfit', config['category'], config['n_proj'])
+    trainset = ShapeNet('train' if not config['is_overfit'] else 'overfit_10', config['category'], config['n_proj'])
     trainloader = torch.utils.data.DataLoader(trainset, batch_size=config['batch_size'], shuffle=True)
 
-    valset = ShapeNet('val' if not config['is_overfit'] else 'overfit', config['category'], config['n_proj'])
+    valset = ShapeNet('val' if not config['is_overfit'] else 'overfit_10', config['category'], config['n_proj'])
     valloader = torch.utils.data.DataLoader(valset, batch_size=config['batch_size'], shuffle=False)
     
     # device = 
@@ -346,6 +366,7 @@ def main(config):
     else: 
       recon_net = ReconstructionNet()
       pose_net = PoseNet() ## Need to merge
+
 
     #Sets the value of initial prediction for ISO loss
     if(config['iso']):

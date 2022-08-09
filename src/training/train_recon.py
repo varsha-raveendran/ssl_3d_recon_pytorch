@@ -1,92 +1,91 @@
-from pathlib import Path
-
-import numpy as np
+import torch.nn as nn
 import torch
 
-from src.data.shapenet import ShapeNet
-from src.network_architecture.recon_model import ReconstructionNet
+class ReconstructionNet(nn.Module):
+    def __init__(self, return_feat = False):
+        """
+        Reconstruct pointcloud from 2d image
+        :param 
+        """
+        
+        super().__init__()
+        self.return_feat = return_feat
+        self.relu  = nn.ReLU()
+        
+        #Structure branch
+        self.cnn1 = nn.Conv2d(in_channels = 3, out_channels = 32, kernel_size = 3, stride=2, padding=(1,1))
+        self.cnn2 = nn.Conv2d(in_channels = 32, out_channels = 64, kernel_size = 3, stride=2, padding=(1,1))
+        self.cnn3 = nn.Conv2d(in_channels = 64, out_channels = 128, kernel_size = 3, stride=2, padding=(1,1))
+        self.cnn4 = nn.Conv2d(in_channels = 128, out_channels = 256, kernel_size = 3, stride=2, padding=(1,1))
+        
+        
+        self.linear1 = nn.Linear(in_features= 256*4*4 , out_features=128) 
+        self.linear2 = nn.Linear(in_features= 128 , out_features=128)
+        self.linear3 = nn.Linear(in_features= 128 , out_features=128)
+        self.linear4 = nn.Linear(in_features= 128 , out_features=1024*3) #TODO: make 1024 configurable
+        
+        #Color branch
+        self.color_cnn1 = nn.Conv2d(in_channels = 3, out_channels = 32, kernel_size = 3, stride=2, padding=(1,1))
+        self.color_cnn2 = nn.Conv2d(in_channels = 32, out_channels = 64, kernel_size = 3, stride=2, padding=(1,1))
+        
+        self.color_linear1 = nn.Linear(in_features= 64*16*16 , out_features=128)
+        self.color_linear2 = nn.Linear(in_features= 128 , out_features=128)
+        self.color_linear3 = nn.Linear(in_features= 128 , out_features=128)
+        
+        self.color_linear4 = nn.Linear(in_features= 256 , out_features=128)
+        self.color_linear5 = nn.Linear(in_features= 128 , out_features=1024*3)
+        
+        self.sigmoid = nn.Sigmoid()
+        
 
-import wandb
-
-
-def train(config):
-    # create dataloaders
-    wandb.init(project='recon_run',reinit=True)
-
-    trainset = ShapeNet('train' if not config['is_overfit'] else 'overfit', config['category'])
-    trainloader = torch.utils.data.DataLoader(trainset, batch_size=config['batch_size'], shuffle=True, num_workers=2)
-
-    valset = ShapeNet('val' if not config['is_overfit'] else 'overfit', config['category'])
-    valloader = torch.utils.data.DataLoader(valset, batch_size=config['batch_size'], shuffle=False, num_workers=2)
     
-    device = config['device']
-    # declare device
-    # device = torch.device('cpu')
-    device = torch.device(config['device'])    
-    model = ReconstructionNet()
-    
-    model.to(device)
-    wandb.watch(model)
-
-    loss_criterion = torch.nn.MSELoss()
-
-    loss_criterion.to(device)
-
-    optimizer = torch.optim.Adam(model.parameters(), lr = config['learning_rate'] )
-
-    model.train()
-
-    best_accuracy = 0.
-
-    train_loss_running = 0.
-
-    for epoch in range(config['max_epochs']):
-        train_loss_running = 0 
-        for i, batch in enumerate(trainloader):
-            # move batch to device
-            ShapeNet.move_batch_to_device(batch, device)
-            optimizer.zero_grad()
-            pred_img, pred_mask = model(batch['img_rgb'])
-            print("prediction shape: ", pred_img.shape)
-            loss_total = loss_criterion(pred_img, batch['pcl'])
-            loss_total.backward()
-
-            optimizer.step()
-
-            # loss logging
-            train_loss_running += loss_total.item()
-            iteration = epoch * len(trainloader) + i
-            
-            """if iteration % config['print_every_n'] == (config['print_every_n'] - 1):
-                print(f'[{epoch:03d}/{i:05d}] train_loss: {train_loss_running / config["print_every_n"]:.3f}')
-                train_loss_running = 0."""
-
-            # validation evaluation and logging
-            if iteration % config['validate_every_n'] == (config['validate_every_n'] - 1):
-
-                # set model to eval, important if your network has e.g. dropout or batchnorm layers
-                model.eval()
-                
-                loss_total_val = 0
-                # forward pass and evaluation for entire validation set
-                for batch_val in valloader:
-                    ShapeNet.move_batch_to_device(batch_val, device)
-
-                    with torch.no_grad():
-                        print(batch_val['img_rgb'].shape)
-                        pred_img, pred_mask = model(batch_val['img_rgb'])
-
-                    loss_total_val = loss_criterion(pred_img, batch_val['pcl']).item()
-
-                # add metric
-                wandb.log({"train_loss": train_loss_running})
-                
-                wandb.log({"val_loss": loss_total_val})
-                
-                print(f'[{epoch:03d}/{i:05d}] val_loss: {loss_total_val / len(valloader):.3f}')
-                
-                # set model back to train
-                model.train()
-    wandb.finish()
-    torch.save(model.state_dict(), f'src/runs/{config["experiment_name"]}/model_best.ckpt')
+    def forward(self, img_ip):
+        """
+        :param x: (3,W,H) tensor #TODO: check
+        :return: 1024*3 x 1 tensor
+        """
+        x = img_ip
+        x = self.relu(self.cnn1(x)) #es1
+        x = self.relu(self.cnn2(x)) #es2
+        x = self.relu(self.cnn3(x)) #es3
+        x = self.relu(self.cnn4(x)) #es4
+        # print(x.shape)
+        x = x.view(x.size(0), -1)
+        # print(x.shape)
+        x = self.relu(self.linear1(x)) #ds1
+        # enc_pcl = x
+        x = self.relu(self.linear2(x)) #ds2
+        x1 = self.relu(self.linear3(x)) #ds3
+        x = self.linear4(x1) #ds4
+        # print("before view: ", x.shape)
+        x = x.view(x.size(0), 3, 1024)        
+        # print("after view: ",x.shape)
+        
+        y = self.relu(self.color_cnn1(img_ip)) #ec1
+        y = self.relu(self.color_cnn2(y)) #ec2
+        
+        y = y.view(y.size(0), -1)
+        y = self.relu(self.color_linear1(y)) #dc1
+        
+        # enc_feat = torch.concat([enc_pcl, y], axis=0)
+        # print(enc_feat.shape)
+        y = self.relu(self.color_linear2(y)) #dc2
+        y = self.relu(self.color_linear3(y))     #dc3   
+        # print(x1.shape, " cat " , y.shape)
+        y = torch.concat([x1,y], axis=-1) #dc3
+          
+        y = self.relu(self.color_linear4(y)) #dc4
+        y = self.color_linear5(y) #dc4
+        
+        y = y.view(-1, 1024,3) 
+        y = self.sigmoid(y)
+        y = y.permute(0, 2,1)
+        # print(y.shape , " ", x.shape)    
+        #self.z = torch.concat([x,y], axis=1)
+        #print("z : " ,self.z.shape)
+        # if not self.return_feat:
+        return x, y
+        # else:
+        #     return x, y, enc_feat
+        
 
